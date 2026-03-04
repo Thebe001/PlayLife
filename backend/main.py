@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.db import engine, Base
 
@@ -20,16 +21,29 @@ from app.models import (
     template_item
 )
 
-from app.api import pillar_routes
-from app.api import habit_routes
-from app.api import scoring_routes
-from app.api import gamification_routes
-from app.api import journal_routes
-from app.api import review_routes
-from app.api import template_routes
-
+from app.api import (
+    pillar_routes,
+    habit_routes,
+    scoring_routes,
+    gamification_routes,
+    journal_routes,
+    review_routes,
+    template_routes
+)
 
 app = FastAPI(title="PlayUrLife API")
+
+origins = [
+    "http://localhost:3000"
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 Base.metadata.create_all(bind=engine)
 
