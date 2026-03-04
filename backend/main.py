@@ -15,7 +15,9 @@ from app.models import (
     badge,
     badge_unlock,
     journal_entry,
-    review
+    review,
+    day_template,
+    template_item
 )
 
 from app.api import pillar_routes
@@ -24,6 +26,7 @@ from app.api import scoring_routes
 from app.api import gamification_routes
 from app.api import journal_routes
 from app.api import review_routes
+from app.api import template_routes
 
 
 app = FastAPI(title="PlayUrLife API")
@@ -36,6 +39,7 @@ app.include_router(scoring_routes.router)
 app.include_router(gamification_routes.router)
 app.include_router(journal_routes.router)
 app.include_router(review_routes.router)
+app.include_router(template_routes.router)
 
 
 @app.get("/")
