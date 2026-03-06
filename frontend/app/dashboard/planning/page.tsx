@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Pomodoro from "@/components/pomodoro"
+import { checkHabit } from "@/lib/api"
 
 const API = "http://localhost:8000"
 
@@ -129,6 +131,10 @@ export default function Planning() {
           <div className="text-xs text-gray-500">{checkedCount}/{totalCount} complétées</div>
         </div>
       </div>
+      <Pomodoro
+  habits={habits}
+  onHabitCheck={checkHabit}
+/>
 
       {/* Progress bar */}
       <div className="w-full bg-gray-800 rounded-full h-2">
