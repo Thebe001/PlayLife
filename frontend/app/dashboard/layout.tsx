@@ -5,15 +5,15 @@ import { usePathname } from "next/navigation"
 import VoiceButton from "@/components/voice-button"
 
 const navItems = [
-  { href: "/dashboard",              icon: "⚡", label: "Dashboard"     },
-  { href: "/dashboard/planning",     icon: "📅", label: "Planning"      },
-  { href: "/dashboard/objectives",   icon: "🎯", label: "Objectifs"     },
-  { href: "/dashboard/gamification", icon: "🏆", label: "Gamification"  },
-  { href: "/dashboard/journal",      icon: "📓", label: "Journal"       },
-  { href: "/dashboard/reviews",      icon: "📊", label: "Reviews"       },
-  { href: "/dashboard/stats",        icon: "📈", label: "Stats"         },
-  { href: "/dashboard/settings",     icon: "⚙️",  label: "Settings"     },
-  { href: "/dashboard/skilltree", icon: "🌳", label: "Skill Tree" },
+  { href: "/dashboard",              icon: "⚡", label: "Dashboard"    },
+  { href: "/dashboard/planning",     icon: "📅", label: "Planning"     },
+  { href: "/dashboard/objectives",   icon: "🎯", label: "Objectifs"    },
+  { href: "/dashboard/gamification", icon: "🏆", label: "Gamification" },
+  { href: "/dashboard/skilltree",    icon: "🌳", label: "Skill Tree"   },
+  { href: "/dashboard/journal",      icon: "📓", label: "Journal"      },
+  { href: "/dashboard/reviews",      icon: "📊", label: "Reviews"      },
+  { href: "/dashboard/stats",        icon: "📈", label: "Stats"        },
+  { href: "/dashboard/settings",     icon: "⚙️",  label: "Settings"    },
 ]
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -52,11 +52,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </aside>
 
       <main className="flex-1 overflow-y-auto relative">
-  <div className="page-enter">
-    {children}
-  </div>
-  <VoiceButton />
-</main>
+        <div className="page-enter">
+          {children}
+        </div>
+        <VoiceButton />
+      </main>
     </div>
   )
 }
