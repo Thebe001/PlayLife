@@ -17,7 +17,7 @@ class HabitCreate(HabitBase):
 
 class HabitResponse(HabitBase):
     id: int
+    pillar_id: int
     is_active: bool
 
-    class Config:
-        from_attributes = True
+    model_config = {"from_attributes": True}
