@@ -1,48 +1,44 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 from app.config import settings
 from app.db import engine, Base
 
 # Import all models so SQLAlchemy creates the tables
 from app.models import (
-    pillar,
-    habit,
-    habit_log,
-    objective,
-    task,
-    daily_score,
-    global_score,
-    xp_log,
-    level,
-    badge,
-    badge_unlock,
-    journal_entry,
-    review,
-    day_template,
-    template_item,
+    pillar, habit, habit_log, objective, task,
+    daily_score, global_score, xp_log, level,
+    badge, badge_unlock, journal_entry, review,
+    day_template, template_item,
 )
 from app.models import reward, reward_log, sanction, sanction_log
 
 from app.api import (
-    pillar_routes,
-    habit_routes,
-    scoring_routes,
-    gamification_routes,
-    journal_routes,
-    review_routes,
-    template_routes,
-    stats_routes,
-    voice_routes,
-    backup_routes,
+    pillar_routes, habit_routes, scoring_routes,
+    gamification_routes, journal_routes, review_routes,
+    template_routes, stats_routes, voice_routes, backup_routes,
 )
 from app.api import objective_routes, reward_routes, skilltree_routes
+
+# ── Rate limiter (localhost only → limites généreuses) ──────────────────────
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["300/minute"],   # 300 req/min globalement
+)
 
 app = FastAPI(
     title="LifeForge OS API",
     version=settings.APP_VERSION,
     description="Your Personal Life Operating System — Backend API",
 )
+
+# Attacher le limiter à l'app
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
