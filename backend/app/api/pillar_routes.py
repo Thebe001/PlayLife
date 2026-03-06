@@ -11,6 +11,7 @@ from app.services.pillar_service import (
     get_pillar_by_id,
     update_pillar,
     archive_pillar,
+    get_weight_summary,
 )
 
 router = APIRouter(prefix="/pillars", tags=["Pillars"])
@@ -23,6 +24,15 @@ class PillarUpdate(BaseModel):
     weight_pct: Optional[float] = Field(None, ge=0, le=100)
 
 
+@router.get("/weight-summary")
+def weight_summary(db: Session = Depends(get_db)):
+    """
+    Retourne la somme des poids actifs et le budget restant.
+    Utilisé par le frontend pour afficher le warning en temps réel.
+    """
+    return get_weight_summary(db)
+
+
 @router.get("/", response_model=list[PillarResponse])
 def read_pillars(db: Session = Depends(get_db)):
     return get_pillars(db)
@@ -30,6 +40,7 @@ def read_pillars(db: Session = Depends(get_db)):
 
 @router.post("/", response_model=PillarResponse)
 def create_new_pillar(pillar: PillarCreate, db: Session = Depends(get_db)):
+    # validate_weight_budget est appelé dans create_pillar — HTTP 422 si dépassement
     return create_pillar(db, pillar)
 
 
