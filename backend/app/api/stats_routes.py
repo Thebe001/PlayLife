@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 
@@ -7,8 +8,8 @@ from app.models.global_score import GlobalScore
 from app.models.daily_score import DailyScore
 from app.models.pillar import Pillar
 from app.models.habit_log import HabitLog
-from app.models.habit import Habit
 from app.models.journal_entry import JournalEntry
+from app.models.xp_log import XPLog
 
 router = APIRouter(prefix="/stats", tags=["Stats"])
 
@@ -76,14 +77,14 @@ def get_progression(days: int = 30, db: Session = Depends(get_db)):
 
 @router.get("/overview")
 def get_overview(db: Session = Depends(get_db)):
-    """Stats clés : moyenne 7j, 30j, meilleur jour, total habitudes."""
+    """Stats clés : moyenne 7j, 30j, meilleur jour, total habitudes, XP réel."""
     today = date.today()
 
-    def avg_score(days: int):
+    def avg_score(days: int) -> float:
         start = today - timedelta(days=days - 1)
         scores = db.query(GlobalScore).filter(GlobalScore.date >= start).all()
         if not scores:
-            return 0
+            return 0.0
         return round(sum(s.score_global for s in scores) / len(scores), 1)
 
     best = (
@@ -92,16 +93,27 @@ def get_overview(db: Session = Depends(get_db)):
         .first()
     )
 
-    total_checks = db.query(HabitLog).filter(HabitLog.checked == True).count()
+    total_checks = (
+        db.query(HabitLog)
+        .filter(HabitLog.checked == True)
+        .count()
+    )
 
-    total_xp = db.query(GlobalScore).with_entities(
-        GlobalScore.xp_earned
-    ).all()
-    xp_sum = sum(x[0] for x in total_xp)
+    # ✅ Fix : XP total depuis XPLog (source réelle), pas GlobalScore
+    xp_sum = db.query(func.sum(XPLog.xp_delta)).scalar() or 0
 
-    # Mood moyen (journal)
-    entries = db.query(JournalEntry).all()
-    avg_mood = round(sum(e.mood for e in entries) / len(entries), 1) if entries else 0
+    # Mood moyen — ignorer les entrées sans mood (None ou 0)
+    entries_with_mood = (
+        db.query(JournalEntry)
+        .filter(JournalEntry.mood != None, JournalEntry.mood > 0)
+        .all()
+    )
+    avg_mood = (
+        round(sum(e.mood for e in entries_with_mood) / len(entries_with_mood), 1)
+        if entries_with_mood else 0
+    )
+
+    total_entries = db.query(JournalEntry).count()
 
     return {
         "avg_7d": avg_score(7),
@@ -109,7 +121,7 @@ def get_overview(db: Session = Depends(get_db)):
         "best_score": best.score_global if best else 0,
         "best_score_date": str(best.date) if best else None,
         "total_habit_checks": total_checks,
-        "total_xp": xp_sum,
+        "total_xp": int(xp_sum),
         "avg_mood": avg_mood,
-        "total_journal_entries": len(entries),
+        "total_journal_entries": total_entries,
     }

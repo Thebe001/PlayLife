@@ -36,18 +36,12 @@ from app.api import (
     backup_routes,
 )
 from app.api import objective_routes, reward_routes
-from contextlib import asynccontextmanager
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Précharger Whisper au démarrage pour éviter le timeout
-    print("🎤 Préchargement Whisper...")
-    from app.services.whisper_service import get_model
-    get_model()
-    print("✅ Whisper prêt.")
-    yield
-
-app = FastAPI(title="LifeForge OS API", version="0.2.0", lifespan=lifespan)
+app = FastAPI(
+    title="LifeForge OS API",
+    version="0.3.0",
+    description="Your Personal Life Operating System — Backend API",
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -70,8 +64,19 @@ app.include_router(objective_routes.router)
 app.include_router(reward_routes.router)
 app.include_router(stats_routes.router)
 app.include_router(voice_routes.router)
-app.include_router(backup_routes.router)    
+app.include_router(backup_routes.router)
+
 
 @app.get("/")
 def root():
-    return {"message": "LifeForge OS backend running ✓", "version": "0.2.0"}
+    return {
+        "message": "LifeForge OS backend running ✓",
+        "version": "0.3.0",
+        "docs": "http://localhost:8000/docs",
+    }
+
+
+@app.get("/health")
+def health():
+    """Endpoint de santé — utile pour vérifier que le backend tourne."""
+    return {"status": "ok"}

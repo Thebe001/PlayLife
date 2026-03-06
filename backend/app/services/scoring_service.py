@@ -1,3 +1,4 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from datetime import date
 
@@ -6,6 +7,7 @@ from app.models.habit import Habit
 from app.models.daily_score import DailyScore
 from app.models.global_score import GlobalScore
 from app.models.pillar import Pillar
+from app.models.xp_log import XPLog
 
 
 def calculate_daily_scores(db: Session, target_date: date = None):
@@ -28,10 +30,9 @@ def calculate_daily_scores(db: Session, target_date: date = None):
     for log, habit in logs:
         pid = habit.pillar_id
         if pid not in pillar_points:
-            pillar_points[pid] = 0
-            pillar_max[pid] = 0
+            pillar_points[pid] = 0.0
+            pillar_max[pid] = 0.0
         pillar_points[pid] += log.points_earned
-        # points_max = valeur absolue (bad habits ont points négatifs)
         pillar_max[pid] += abs(habit.points)
 
     results = []
@@ -47,7 +48,10 @@ def calculate_daily_scores(db: Session, target_date: date = None):
         # Upsert : éviter les doublons si on recalcule
         existing = (
             db.query(DailyScore)
-            .filter(DailyScore.date == target_date, DailyScore.pillar_id == pillar_id)
+            .filter(
+                DailyScore.date == target_date,
+                DailyScore.pillar_id == pillar_id,
+            )
             .first()
         )
         if existing:
@@ -89,11 +93,13 @@ def calculate_global_score(db: Session, target_date: date = None):
 
     for score in scores:
         pillar = db.query(Pillar).filter(Pillar.id == score.pillar_id).first()
-        if pillar and pillar.is_active:
-            weighted_sum += score.score_pct * (pillar.weight_pct / 100)
-            total_weight += pillar.weight_pct / 100
+        # ✅ Protection si pilier supprimé entre temps
+        if not pillar or not pillar.is_active:
+            continue
+        weighted_sum += score.score_pct * (pillar.weight_pct / 100)
+        total_weight += pillar.weight_pct / 100
 
-    # Normaliser si les poids ne font pas 100%
+    # Normaliser si les poids ne font pas exactement 100%
     if total_weight > 0:
         global_score_value = round(weighted_sum / total_weight, 2)
     else:
@@ -124,7 +130,7 @@ def calculate_global_score(db: Session, target_date: date = None):
 
 
 def get_today_summary(db: Session):
-    """Retourne un résumé complet du jour : scores par pilier + score global."""
+    """Retourne un résumé complet du jour : scores par pilier + score global + XP réel."""
 
     today = date.today()
 
@@ -141,10 +147,18 @@ def get_today_summary(db: Session):
         .first()
     )
 
+    # ✅ Fix : XP du jour depuis XPLog (vrais points gagnés aujourd'hui)
+    xp_today = (
+        db.query(func.sum(XPLog.xp_delta))
+        .filter(XPLog.date == today)
+        .scalar()
+        or 0
+    )
+
     return {
         "date": str(today),
         "global_score": global_score.score_global if global_score else 0,
-        "xp_today": global_score.xp_earned if global_score else 0,
+        "xp_today": int(xp_today),
         "pillars": [
             {
                 "pillar_id": pillar.id,
