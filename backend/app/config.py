@@ -33,7 +33,7 @@ class _Settings:
     WHISPER_MODEL: str = os.getenv("WHISPER_MODEL", "small")
 
     # App metadata
-    APP_VERSION: str = os.getenv("APP_VERSION", "0.3.0")
+    APP_VERSION: str = os.getenv("APP_VERSION", "0.5.0")
 
     # Backup
     MAX_AUTO_BACKUPS: int = int(os.getenv("MAX_AUTO_BACKUPS", "30"))

@@ -12,6 +12,9 @@ from app.schemas.reward_schema import RewardCreate, SanctionCreate
 router = APIRouter(prefix="/rewards", tags=["Rewards & Sanctions"])
 
 
+# ── Rewards ────────────────────────────────────────────
+# ORDRE CRITIQUE : statiques avant dynamiques
+
 @router.post("/")
 def create_reward(data: RewardCreate, db: Session = Depends(get_db)):
     reward = Reward(**data.model_dump())
@@ -58,18 +61,9 @@ def consume_reward(reward_id: int, db: Session = Depends(get_db)):
     return {"message": f"Récompense '{reward.name}' consommée 🎉"}
 
 
-@router.delete("/{reward_id}")
-def delete_reward(reward_id: int, db: Session = Depends(get_db)):
-    reward = db.query(Reward).filter(Reward.id == reward_id).first()
-    if not reward:
-        raise HTTPException(status_code=404, detail="Introuvable")
-    db.delete(reward)
-    db.commit()
-    return {"message": "Supprimée"}
-
-
-# ── Sanctions ──────────────────────────────────────────
-# IMPORTANT : routes statiques AVANT les routes dynamiques
+# ── Sanctions — routes STATIQUES (/sanctions/, /sanctions/active)
+# AVANT la route dynamique DELETE /{reward_id}
+# Si DELETE /{reward_id} était ici, FastAPI lirait "sanctions" comme un reward_id
 
 @router.post("/sanctions/")
 def create_sanction(data: SanctionCreate, db: Session = Depends(get_db)):
@@ -107,5 +101,18 @@ def delete_sanction(sanction_id: int, db: Session = Depends(get_db)):
     if not sanction:
         raise HTTPException(status_code=404, detail="Introuvable")
     db.delete(sanction)
+    db.commit()
+    return {"message": "Supprimée"}
+
+
+# ── DELETE reward — route DYNAMIQUE en dernier
+# Doit rester après toutes les routes /sanctions/*
+
+@router.delete("/{reward_id}")
+def delete_reward(reward_id: int, db: Session = Depends(get_db)):
+    reward = db.query(Reward).filter(Reward.id == reward_id).first()
+    if not reward:
+        raise HTTPException(status_code=404, detail="Introuvable")
+    db.delete(reward)
     db.commit()
     return {"message": "Supprimée"}

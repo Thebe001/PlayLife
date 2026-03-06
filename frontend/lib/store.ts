@@ -1,5 +1,11 @@
 import { create } from "zustand"
-import { API } from "./api"
+import {
+  getTodaySummary,
+  computeDailyScores,
+  computeGlobalScore,
+  getPillars,
+  getGamificationSummary,
+} from "./api"
 
 // ── Types ──────────────────────────────────────────────
 
@@ -35,13 +41,11 @@ interface GamificationSummary {
 }
 
 interface AppStore {
-  // State
   todaySummary: TodaySummary | null
   pillars: Pillar[]
   gamification: GamificationSummary | null
   isRefreshing: boolean
 
-  // Actions
   fetchTodaySummary: () => Promise<void>
   fetchPillars: () => Promise<void>
   fetchGamification: () => Promise<void>
@@ -58,10 +62,8 @@ export const useAppStore = create<AppStore>((set) => ({
 
   fetchTodaySummary: async () => {
     try {
-      const res = await fetch(`${API}/score/today`)
-      if (!res.ok) return
-      const data = await res.json()
-      set({ todaySummary: data })
+      const data = await getTodaySummary()
+      set({ todaySummary: data as TodaySummary })
     } catch (e) {
       console.error("fetchTodaySummary:", e)
     }
@@ -69,10 +71,8 @@ export const useAppStore = create<AppStore>((set) => ({
 
   fetchPillars: async () => {
     try {
-      const res = await fetch(`${API}/pillars/`)
-      if (!res.ok) return
-      const data = await res.json()
-      set({ pillars: data })
+      const data = await getPillars()
+      set({ pillars: data as Pillar[] })
     } catch (e) {
       console.error("fetchPillars:", e)
     }
@@ -80,10 +80,8 @@ export const useAppStore = create<AppStore>((set) => ({
 
   fetchGamification: async () => {
     try {
-      const res = await fetch(`${API}/gamification/summary`)
-      if (!res.ok) return
-      const data = await res.json()
-      set({ gamification: data })
+      const data = await getGamificationSummary()
+      set({ gamification: data as GamificationSummary })
     } catch (e) {
       console.error("fetchGamification:", e)
     }
@@ -92,13 +90,10 @@ export const useAppStore = create<AppStore>((set) => ({
   refreshScores: async () => {
     set({ isRefreshing: true })
     try {
-      await fetch(`${API}/score/daily`, { method: "POST" })
-      await fetch(`${API}/score/global`, { method: "POST" })
-      const res = await fetch(`${API}/score/today`)
-      if (res.ok) {
-        const data = await res.json()
-        set({ todaySummary: data })
-      }
+      await computeDailyScores()
+      await computeGlobalScore()
+      const data = await getTodaySummary()
+      set({ todaySummary: data as TodaySummary })
     } catch (e) {
       console.error("refreshScores:", e)
     } finally {

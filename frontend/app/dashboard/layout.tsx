@@ -49,7 +49,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </nav>
       <div className="px-3 pt-4 border-t border-gray-800">
         <p className="text-xs text-gray-600">Ahmed FRIKHA</p>
-        <p className="text-xs text-gray-700">v0.3.0</p>
+        <p className="text-xs text-gray-700">v0.5.0</p>
       </div>
     </>
   )

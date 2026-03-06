@@ -231,27 +231,28 @@ def get_weekly_comparison(db: Session = Depends(get_db)):
 
 @router.get("/daily-breakdown")
 def get_daily_breakdown(db: Session = Depends(get_db)):
-    """Score jour par jour pour la semaine actuelle et précédente."""
+    """Score jour par jour pour la semaine actuelle et précédente — une seule query."""
     today = date.today()
     current_start = today - timedelta(days=today.weekday())
     prev_start    = current_start - timedelta(days=7)
+    prev_end      = current_start - timedelta(days=1)
 
     DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
 
-    def week_scores(start: date):
+    # Une seule requête pour les 14 jours
+    scores = (
+        db.query(GlobalScore)
+        .filter(GlobalScore.date >= prev_start, GlobalScore.date <= today)
+        .all()
+    )
+    score_map = {s.date: s.score_global for s in scores}
+
+    def week_scores(start: date) -> list:
         return [
             {
                 "day":   DAY_LABELS[i],
                 "date":  str(start + timedelta(days=i)),
-                "score": next(
-                    (
-                        s.score_global
-                        for s in db.query(GlobalScore).filter(
-                            GlobalScore.date == start + timedelta(days=i)
-                        ).all()
-                    ),
-                    None,
-                ),
+                "score": score_map.get(start + timedelta(days=i)),
             }
             for i in range(7)
         ]
