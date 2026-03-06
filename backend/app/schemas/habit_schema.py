@@ -1,14 +1,14 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import Literal
 from datetime import date
 
 
 class HabitBase(BaseModel):
-
-    name: str
+    name: str = Field(..., min_length=1, max_length=200)
     pillar_id: int
-    type: str
-    points: int
-    frequency: str
+    type: Literal["good", "bad"]
+    points: int = Field(..., ge=1, le=100)
+    frequency: Literal["daily", "weekly"]
 
 
 class HabitCreate(HabitBase):
@@ -16,15 +16,8 @@ class HabitCreate(HabitBase):
 
 
 class HabitResponse(HabitBase):
-
     id: int
     is_active: bool
 
     class Config:
         from_attributes = True
-
-
-class HabitCheck(BaseModel):
-
-    habit_id: int
-    checked: bool

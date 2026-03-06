@@ -2,6 +2,8 @@ import whisper
 import tempfile
 import os
 
+from app.config import settings
+
 _model = None
 
 
@@ -9,8 +11,8 @@ def get_model():
     """Charge le modèle Whisper à la première utilisation (lazy loading)."""
     global _model
     if _model is None:
-        print("🎤 Chargement Whisper small (première utilisation)...")
-        _model = whisper.load_model("small")
+        print(f"🎤 Chargement Whisper {settings.WHISPER_MODEL} (première utilisation)...")
+        _model = whisper.load_model(settings.WHISPER_MODEL)
         print("✅ Whisper prêt.")
     return _model
 

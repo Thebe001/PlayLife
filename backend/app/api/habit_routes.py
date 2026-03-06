@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from datetime import date
 
 from app.db import get_db
 from app.schemas.habit_schema import HabitCreate, HabitResponse
@@ -79,7 +78,7 @@ def delete_habit(habit_id: int, db: Session = Depends(get_db)):
     from app.models.habit import Habit
     habit = db.query(Habit).filter(Habit.id == habit_id).first()
     if not habit:
-        return {"error": "Introuvable"}
+        raise HTTPException(status_code=404, detail="Habitude introuvable")
     habit.is_active = False
     db.commit()
-    return {"message": "Habitude archivée"}
+    return {"message": "Habitude archivée ✓"}

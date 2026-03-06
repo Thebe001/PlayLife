@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from datetime import date, timedelta
 
 from app.models.badge import Badge
@@ -7,23 +7,36 @@ from app.models.habit_log import HabitLog
 from app.models.global_score import GlobalScore
 
 
-def check_badges(db: Session):
+def check_badges(db: Session) -> list[str]:
+    """
+    Vérifie et débloque les badges mérités.
+    FIX: ancienne version faisait des requêtes séparées par badge (N+1).
+    Maintenant toutes les données sont chargées en amont.
+    """
+    # Charger tout en une seule fois
     badges = db.query(Badge).all()
-    already_unlocked = {bu.badge_id for bu in db.query(BadgeUnlock).all()}
+    already_unlocked_ids = {
+        bu.badge_id for bu in db.query(BadgeUnlock.badge_id).all()
+    }
+
+    total_habit_checks = db.query(HabitLog).filter(HabitLog.checked == True).count()
+    streak = get_global_streak(db)
+    scores = (
+        db.query(GlobalScore)
+        .order_by(GlobalScore.date.desc())
+        .all()
+    )
+
     unlocked = []
 
-    total_xp_logs = db.query(HabitLog).count()
-    streak = get_global_streak(db)
-    scores = db.query(GlobalScore).order_by(GlobalScore.date.desc()).all()
-
     for badge in badges:
-        if badge.id in already_unlocked:
+        if badge.id in already_unlocked_ids:
             continue
 
         condition = badge.condition_json or ""
         should_unlock = False
 
-        if "first_action" in condition and total_xp_logs >= 1:
+        if "first_action" in condition and total_habit_checks >= 1:
             should_unlock = True
         elif "streak_7" in condition and streak >= 7:
             should_unlock = True
@@ -39,15 +52,17 @@ def check_badges(db: Session):
                 should_unlock = True
 
         if should_unlock:
-            unlock = BadgeUnlock(badge_id=badge.id)
-            db.add(unlock)
+            db.add(BadgeUnlock(badge_id=badge.id))
             unlocked.append(badge.name)
 
-    db.commit()
+    if unlocked:
+        db.commit()
+
     return unlocked
 
 
 def get_global_streak(db: Session) -> int:
+    """Retourne le streak global actuel (jours consécutifs avec score > 0)."""
     scores = (
         db.query(GlobalScore)
         .order_by(GlobalScore.date.desc())
@@ -70,23 +85,32 @@ def get_global_streak(db: Session) -> int:
     return streak
 
 
-def get_unlocked_badges(db: Session):
-    unlocks = db.query(BadgeUnlock).all()
-    seen_badge_ids = set()
+def get_unlocked_badges(db: Session) -> list[dict]:
+    """
+    FIX: ancienne version faisait une requête DB par badge dans la boucle (N+1).
+    Maintenant : un seul JOIN pour tout récupérer.
+    """
+    # Un seul JOIN BadgeUnlock → Badge
+    rows = (
+        db.query(BadgeUnlock, Badge)
+        .join(Badge, BadgeUnlock.badge_id == Badge.id)
+        .order_by(BadgeUnlock.unlocked_at.desc())
+        .all()
+    )
+
+    seen = set()
     result = []
 
-    for unlock in unlocks:
-        if unlock.badge_id in seen_badge_ids:
+    for unlock, badge in rows:
+        if badge.id in seen:
             continue
-        seen_badge_ids.add(unlock.badge_id)
-        badge = db.query(Badge).filter(Badge.id == unlock.badge_id).first()
-        if badge:
-            result.append({
-                "id": badge.id,
-                "name": badge.name,
-                "icon": badge.icon,
-                "description": badge.description,
-                "unlocked_at": unlock.unlocked_at,
-            })
+        seen.add(badge.id)
+        result.append({
+            "id":           badge.id,
+            "name":         badge.name,
+            "icon":         badge.icon,
+            "description":  badge.description,
+            "unlocked_at":  unlock.unlocked_at,
+        })
 
     return result

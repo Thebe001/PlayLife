@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useRef } from "react"
-
-const API = "http://localhost:8000"
+import { useRouter } from "next/navigation"
+import { API } from "@/lib/api"
 
 interface VoiceResult {
   transcription: string
@@ -12,6 +12,7 @@ interface VoiceResult {
 }
 
 export default function VoiceButton() {
+  const router = useRouter()
   const [state, setState] = useState<"idle" | "recording" | "processing">("idle")
   const [result, setResult] = useState<VoiceResult | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -73,7 +74,7 @@ export default function VoiceButton() {
     setState("idle")
 
     if (data.action !== "unknown") {
-      setTimeout(() => window.location.reload(), 2000)
+      setTimeout(() => router.refresh(), 2000)
     }
   } catch (e: unknown) {
     clearTimeout(timeout)
@@ -112,7 +113,7 @@ export default function VoiceButton() {
     setState("idle")
 
     if (data.action !== "unknown") {
-      setTimeout(() => window.location.reload(), 2000)
+      setTimeout(() => router.refresh(), 2000)
     }
   } catch (e: unknown) {
     clearTimeout(timeout)

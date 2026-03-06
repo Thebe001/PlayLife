@@ -3,6 +3,7 @@
 import { useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip } from "recharts"
+import Link from "next/link"
 
 export default function Dashboard() {
   const { todaySummary, fetchTodaySummary } = useAppStore()
@@ -128,16 +129,16 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
         <h3 className="text-sm font-semibold text-gray-300 mb-4">⚡ Actions rapides</h3>
-        <div className="flex gap-3">
-          <a href="/dashboard/planning" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm text-white transition-colors">
+        <div className="flex flex-wrap gap-3">
+          <Link href="/dashboard/planning" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm text-white transition-colors">
             📅 Voir le planning
-          </a>
-          <a href="/dashboard/objectives" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white transition-colors">
+          </Link>
+          <Link href="/dashboard/objectives" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white transition-colors">
             🎯 Mes objectifs
-          </a>
-          <a href="/dashboard/journal" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white transition-colors">
+          </Link>
+          <Link href="/dashboard/journal" className="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-white transition-colors">
             📓 Écrire dans le journal
-          </a>
+          </Link>
         </div>
       </div>
     </div>

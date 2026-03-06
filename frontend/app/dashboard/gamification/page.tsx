@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react"
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
+import Link from "next/link"
 
 interface GamificationData {
   total_xp: number
@@ -27,12 +27,18 @@ export default function Gamification() {
   const [loading, setLoading] = useState(true)
   const [consuming, setConsuming] = useState<number | null>(null)
   const [consumeMsg, setConsumeMsg] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchData = async () => {
-    await fetch(`${API}/gamification/badges/check`, { method: "POST" })
-    const res = await fetch(`${API}/gamification/summary`)
-    const json = await res.json()
-    setData(json)
+    try {
+      await fetch(`${API}/gamification/badges/check`, { method: "POST" })
+      const res = await fetch(`${API}/gamification/summary`)
+      if (!res.ok) throw new Error(`${res.status}`)
+      const json = await res.json()
+      setData(json)
+    } catch {
+      setError("Impossible de charger les données de gamification.")
+    }
     setLoading(false)
   }
 
@@ -54,6 +60,10 @@ export default function Gamification() {
 
   if (loading || !data) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
+  }
+
+  if (error) {
+    return <div className="p-8 text-red-400 text-sm">{error}</div>
   }
 
   const levelColor = LEVEL_COLORS[data.level.name] ?? "#3b82f6"
@@ -181,7 +191,7 @@ export default function Gamification() {
         {data.rewards.length === 0 ? (
           <p className="text-sm text-gray-600">
             Aucune récompense — ajoutes-en via{" "}
-            <a href="/dashboard/settings" className="text-blue-400 underline">Settings</a>.
+            <Link href="/dashboard/settings" className="text-blue-400 underline">Settings</Link>.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3">

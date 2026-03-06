@@ -5,8 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend, LineChart, Line,
 } from "recharts"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface PillarComparison {
   pillar_id: number

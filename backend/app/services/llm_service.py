@@ -1,11 +1,7 @@
 import httpx
 import json
 
-OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL = "mistral"
-
-# Mode sans LLM pour tester le pipeline
-USE_LLM = True  # Passe à False pour tester sans Ollama
+from app.config import settings
 
 
 def parse_intent_rules(text: str) -> dict:
@@ -51,14 +47,14 @@ def parse_intent_rules(text: str) -> dict:
 async def parse_intent(text: str) -> dict:
     """Parse l'intention — utilise LLM si disponible, sinon règles."""
 
-    if not USE_LLM:
+    if not settings.USE_LLM:
         return parse_intent_rules(text)
 
     # Essayer Ollama avec timeout court
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.post(OLLAMA_URL, json={
-                "model": MODEL,
+            res = await client.post(settings.OLLAMA_URL, json={
+                "model": settings.OLLAMA_MODEL,
                 "prompt": f"""Tu es l'assistant LifeForge OS. Analyse cette commande et retourne UNIQUEMENT un JSON.
 
 Actions: get_score, check_habit(habit_name), create_objective(title,pillar,horizon), get_objectives, add_journal(content), generate_review(type), unknown
@@ -85,8 +81,8 @@ async def get_advice(context: str) -> str:
     """Conseil personnalisé — avec fallback."""
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
-            res = await client.post(OLLAMA_URL, json={
-                "model": MODEL,
+            res = await client.post(settings.OLLAMA_URL, json={
+                "model": settings.OLLAMA_MODEL,
                 "prompt": f"Donne un conseil motivant en 2 phrases max basé sur: {context}",
                 "stream": False,
             })

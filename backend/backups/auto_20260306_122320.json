@@ -1,0 +1,364 @@
+{
+  "exported_at": "2026-03-06T12:23:20.584951+00:00",
+  "version": "0.3.0",
+  "pillars": [
+    {
+      "id": "1",
+      "name": "Carrière",
+      "icon": "💼",
+      "color": "#3b82f6",
+      "weight_pct": "30.0",
+      "is_active": "False",
+      "created_at": "2026-03-04 12:18:25.730759"
+    },
+    {
+      "id": "2",
+      "name": "Santé",
+      "icon": "💪",
+      "color": "#22c55e",
+      "weight_pct": "25.0",
+      "is_active": "True",
+      "created_at": "2026-03-04 12:18:31.952844"
+    },
+    {
+      "id": "3",
+      "name": "Carrière",
+      "icon": "",
+      "color": "#3b82f6",
+      "weight_pct": "40.0",
+      "is_active": "True",
+      "created_at": "2026-03-06 12:13:09.792572"
+    }
+  ],
+  "habits": [
+    {
+      "id": "1",
+      "pillar_id": "1",
+      "name": "Deep Work 2h",
+      "type": "good",
+      "points": "30",
+      "frequency": "daily",
+      "is_active": "True"
+    },
+    {
+      "id": "2",
+      "pillar_id": "1",
+      "name": "aa",
+      "type": "good",
+      "points": "20",
+      "frequency": "daily",
+      "is_active": "True"
+    },
+    {
+      "id": "3",
+      "pillar_id": "1",
+      "name": "Deep Work 2h",
+      "type": "good",
+      "points": "30",
+      "frequency": "daily",
+      "is_active": "True"
+    }
+  ],
+  "habit_logs": [
+    {
+      "id": "1",
+      "habit_id": "1",
+      "date": "2026-03-04",
+      "checked": "True",
+      "points_earned": "30"
+    },
+    {
+      "id": "2",
+      "habit_id": "2",
+      "date": "2026-03-04",
+      "checked": "True",
+      "points_earned": "20"
+    },
+    {
+      "id": "3",
+      "habit_id": "1",
+      "date": "2026-03-06",
+      "checked": "True",
+      "points_earned": "30"
+    },
+    {
+      "id": "4",
+      "habit_id": "2",
+      "date": "2026-03-06",
+      "checked": "True",
+      "points_earned": "20"
+    }
+  ],
+  "objectives": [
+    {
+      "id": "1",
+      "pillar_id": "1",
+      "title": "Finir LifeForge OS",
+      "description": "None",
+      "horizon": "monthly",
+      "deadline": "2026-03-31",
+      "completion_pct": "0.0",
+      "status": "active"
+    }
+  ],
+  "tasks": [],
+  "daily_scores": [
+    {
+      "id": "1",
+      "date": "2026-03-04",
+      "pillar_id": "1",
+      "score_pct": "100.0",
+      "points_earned": "50.0",
+      "points_max": "50.0"
+    },
+    {
+      "id": "2",
+      "date": "2026-03-06",
+      "pillar_id": "1",
+      "score_pct": "100.0",
+      "points_earned": "50.0",
+      "points_max": "50.0"
+    }
+  ],
+  "global_scores": [
+    {
+      "id": "1",
+      "date": "2026-03-04",
+      "score_global": "100.0",
+      "xp_earned": "100"
+    },
+    {
+      "id": "2",
+      "date": "2026-03-06",
+      "score_global": "100.0",
+      "xp_earned": "100"
+    }
+  ],
+  "journal": [
+    {
+      "id": "1",
+      "date": "2026-03-04",
+      "content": "xwkl,cmld",
+      "mood": "3",
+      "energy": "2",
+      "tags": "",
+      "highlight": "d,kl"
+    },
+    {
+      "id": "2",
+      "date": "2026-03-06",
+      "content": "xw,lckW?",
+      "mood": "4",
+      "energy": "3",
+      "tags": "",
+      "highlight": "lsq,lkc"
+    }
+  ],
+  "reviews": [
+    {
+      "id": "1",
+      "type": "weekly",
+      "period_start": "2026-03-02",
+      "period_end": "2026-03-06",
+      "content": "🌟 Semaine exceptionnelle — 2026-03-02 → 2026-03-06\n\n📊 BILAN CHIFFRÉ\nScore moyen : 100.0% | Meilleur jour : 100.0% | Pire jour : 100.0%\n2 jour(s) tracké(s), 4 habitude(s) cochée(s). Humeur moyenne : 3.5/5.\n\n📈 SCORES PAR PILIER\n  • Aucune donnée par pilier\n\n💪 POINTS FORTS\nTu as maintenu une belle régularité cette semaine.\n\n⚠️ POINTS À AMÉLIORER\nContinue sur cette lancée et vise les 90%.\n\n🎯 FOCUS DE LA PROCHAINE SEMAINE\n→ Maintenir le streak et améliorer le pilier le plus faible.\n→ Écrire dans le journal chaque soir pour mieux tracker l'humeur.\n\n💬 \"Semaine exceptionnelle — chaque jour tracké est un jour gagné.\" ",
+      "llm_generated": "True",
+      "edited_content": "None",
+      "created_at": "2026-03-06 12:19:07.150578"
+    }
+  ],
+  "badges": [
+    {
+      "id": "1",
+      "name": "Premier Pas",
+      "icon": "🎯",
+      "description": "Première action complétée",
+      "condition_json": "first_action",
+      "is_custom": "False"
+    },
+    {
+      "id": "2",
+      "name": "Streak Warrior",
+      "icon": "🔥",
+      "description": "7 jours consécutifs de score > 0",
+      "condition_json": "streak_7",
+      "is_custom": "False"
+    },
+    {
+      "id": "3",
+      "name": "Perfect Week",
+      "icon": "⭐",
+      "description": "7 jours consécutifs avec score ≥ 95%",
+      "condition_json": "perfect_week",
+      "is_custom": "False"
+    },
+    {
+      "id": "4",
+      "name": "Diamond Month",
+      "icon": "💎",
+      "description": "30 jours consécutifs avec score ≥ 90%",
+      "condition_json": "diamond_month",
+      "is_custom": "False"
+    },
+    {
+      "id": "5",
+      "name": "Centurion",
+      "icon": "🏆",
+      "description": "100 jours de streak",
+      "condition_json": "streak_100",
+      "is_custom": "False"
+    },
+    {
+      "id": "6",
+      "name": "Premier Pas",
+      "icon": "🎯",
+      "description": "Première action complétée",
+      "condition_json": "first_action",
+      "is_custom": "False"
+    },
+    {
+      "id": "7",
+      "name": "Streak Warrior",
+      "icon": "🔥",
+      "description": "7 jours consécutifs de score > 0",
+      "condition_json": "streak_7",
+      "is_custom": "False"
+    },
+    {
+      "id": "8",
+      "name": "Perfect Week",
+      "icon": "⭐",
+      "description": "7 jours consécutifs avec score ≥ 95%",
+      "condition_json": "perfect_week",
+      "is_custom": "False"
+    },
+    {
+      "id": "9",
+      "name": "Diamond Month",
+      "icon": "💎",
+      "description": "30 jours consécutifs avec score ≥ 90%",
+      "condition_json": "diamond_month",
+      "is_custom": "False"
+    },
+    {
+      "id": "10",
+      "name": "Centurion",
+      "icon": "🏆",
+      "description": "100 jours de streak",
+      "condition_json": "streak_100",
+      "is_custom": "False"
+    },
+    {
+      "id": "11",
+      "name": "Premier Pas",
+      "icon": "🎯",
+      "description": "Première action complétée",
+      "condition_json": "first_action",
+      "is_custom": "False"
+    },
+    {
+      "id": "12",
+      "name": "Streak Warrior",
+      "icon": "🔥",
+      "description": "7 jours consécutifs de score > 0",
+      "condition_json": "streak_7",
+      "is_custom": "False"
+    },
+    {
+      "id": "13",
+      "name": "Perfect Week",
+      "icon": "⭐",
+      "description": "7 jours consécutifs avec score ≥ 95%",
+      "condition_json": "perfect_week",
+      "is_custom": "False"
+    },
+    {
+      "id": "14",
+      "name": "Diamond Month",
+      "icon": "💎",
+      "description": "30 jours consécutifs avec score ≥ 90%",
+      "condition_json": "diamond_month",
+      "is_custom": "False"
+    },
+    {
+      "id": "15",
+      "name": "Centurion",
+      "icon": "🏆",
+      "description": "100 jours de streak",
+      "condition_json": "streak_100",
+      "is_custom": "False"
+    }
+  ],
+  "badge_unlocks": [
+    {
+      "id": "1",
+      "badge_id": "1",
+      "unlocked_at": "2026-03-04"
+    },
+    {
+      "id": "2",
+      "badge_id": "1",
+      "unlocked_at": "2026-03-04"
+    },
+    {
+      "id": "3",
+      "badge_id": "6",
+      "unlocked_at": "2026-03-06"
+    },
+    {
+      "id": "4",
+      "badge_id": "11",
+      "unlocked_at": "2026-03-06"
+    },
+    {
+      "id": "5",
+      "badge_id": "6",
+      "unlocked_at": "2026-03-06"
+    },
+    {
+      "id": "6",
+      "badge_id": "11",
+      "unlocked_at": "2026-03-06"
+    }
+  ],
+  "xp_logs": [
+    {
+      "id": "1",
+      "date": "2026-03-06",
+      "xp_delta": "30",
+      "source": "habit",
+      "description": "XP from habit"
+    },
+    {
+      "id": "2",
+      "date": "2026-03-06",
+      "xp_delta": "30",
+      "source": "habit",
+      "description": "XP from habit"
+    },
+    {
+      "id": "3",
+      "date": "2026-03-06",
+      "xp_delta": "30",
+      "source": "habit",
+      "description": "XP from habit"
+    },
+    {
+      "id": "4",
+      "date": "2026-03-06",
+      "xp_delta": "20",
+      "source": "habit",
+      "description": "XP from habit"
+    }
+  ],
+  "rewards": [
+    {
+      "id": "1",
+      "name": "Regarder un film",
+      "level_required": "bronze",
+      "reward_type": "consumable",
+      "cooldown_days": "7",
+      "is_active": "True"
+    }
+  ],
+  "sanctions": []
+}

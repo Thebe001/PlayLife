@@ -4,7 +4,6 @@ from sqlalchemy import func
 
 from app.db import get_db
 from app.models.pillar import Pillar
-from app.models.xp_log import XPLog
 from app.models.habit_log import HabitLog
 from app.models.habit import Habit
 from app.models.objective import Objective

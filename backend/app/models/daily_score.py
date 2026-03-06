@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Float, Date, ForeignKey
+from sqlalchemy import Column, Integer, Float, Date, ForeignKey, UniqueConstraint
 from datetime import date
 from app.db import Base
 
@@ -6,6 +6,7 @@ from app.db import Base
 class DailyScore(Base):
 
     __tablename__ = "daily_scores"
+    __table_args__ = (UniqueConstraint("date", "pillar_id", name="uq_dailyscore_date_pillar"),)
 
     id = Column(Integer, primary_key=True, index=True)
     date = Column(Date, default=date.today, nullable=False)

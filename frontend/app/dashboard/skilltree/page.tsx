@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface Skill {
   id: string
@@ -37,19 +36,31 @@ export default function SkillTree() {
   const [trees, setTrees]           = useState<PillarTree[]>([])
   const [selected, setSelected]     = useState<number>(0)
   const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState<string | null>(null)
   const [hoveredSkill, setHovered]  = useState<Skill | null>(null)
 
   useEffect(() => {
     fetch(`${API}/skilltree/`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`)
+        return r.json()
+      })
       .then((data) => {
         setTrees(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        setError("Impossible de charger le skill tree.")
         setLoading(false)
       })
   }, [])
 
   if (loading) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
+  }
+
+  if (error) {
+    return <div className="p-8 text-red-400 text-sm">{error}</div>
   }
 
   if (trees.length === 0) {

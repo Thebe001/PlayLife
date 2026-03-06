@@ -1,37 +1,20 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Optional
-from datetime import datetime, timedelta
-from pydantic import BaseModel
+from datetime import datetime, timezone
 
 from app.db import get_db
 from app.models.reward import Reward
 from app.models.reward_log import RewardLog
 from app.models.sanction import Sanction
 from app.models.sanction_log import SanctionLog
+from app.schemas.reward_schema import RewardCreate, SanctionCreate
 
 router = APIRouter(prefix="/rewards", tags=["Rewards & Sanctions"])
 
 
-class RewardCreate(BaseModel):
-    name: str
-    level_required: str = "bronze"
-    reward_type: str = "consumable"
-    cooldown_days: int = 0
-
-
-class SanctionCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    trigger_threshold: float = 40.0
-    consecutive_days: int = 1
-
-
-# ── Rewards ────────────────────────────────────────────
-
 @router.post("/")
 def create_reward(data: RewardCreate, db: Session = Depends(get_db)):
-    reward = Reward(**data.dict())
+    reward = Reward(**data.model_dump())
     db.add(reward)
     db.commit()
     db.refresh(reward)
@@ -49,7 +32,6 @@ def consume_reward(reward_id: int, db: Session = Depends(get_db)):
     if not reward:
         raise HTTPException(status_code=404, detail="Récompense introuvable")
 
-    # Vérifier cooldown
     if reward.cooldown_days > 0:
         last_use = (
             db.query(RewardLog)
@@ -58,7 +40,7 @@ def consume_reward(reward_id: int, db: Session = Depends(get_db)):
             .first()
         )
         if last_use:
-            delta = datetime.utcnow() - last_use.consumed_at
+            delta = datetime.now(timezone.utc) - last_use.consumed_at
             if delta.days < reward.cooldown_days:
                 remaining = reward.cooldown_days - delta.days
                 raise HTTPException(
@@ -69,28 +51,12 @@ def consume_reward(reward_id: int, db: Session = Depends(get_db)):
     log = RewardLog(reward_id=reward_id)
     db.add(log)
 
-    # One-shot : désactiver après consommation
     if reward.reward_type == "oneshot":
         reward.is_active = False
 
     db.commit()
     return {"message": f"Récompense '{reward.name}' consommée 🎉"}
 
-
-# ── Sanctions ──────────────────────────────────────────
-
-@router.post("/sanctions/")
-def create_sanction(data: SanctionCreate, db: Session = Depends(get_db)):
-    sanction = Sanction(**data.dict())
-    db.add(sanction)
-    db.commit()
-    db.refresh(sanction)
-    return sanction
-
-
-@router.get("/sanctions/")
-def list_sanctions(db: Session = Depends(get_db)):
-    return db.query(Sanction).all()
 
 @router.delete("/{reward_id}")
 def delete_reward(reward_id: int, db: Session = Depends(get_db)):
@@ -102,19 +68,27 @@ def delete_reward(reward_id: int, db: Session = Depends(get_db)):
     return {"message": "Supprimée"}
 
 
-@router.delete("/sanctions/{sanction_id}")
-def delete_sanction(sanction_id: int, db: Session = Depends(get_db)):
-    sanction = db.query(Sanction).filter(Sanction.id == sanction_id).first()
-    if not sanction:
-        raise HTTPException(status_code=404, detail="Introuvable")
-    db.delete(sanction)
+# ── Sanctions ──────────────────────────────────────────
+# IMPORTANT : routes statiques AVANT les routes dynamiques
+
+@router.post("/sanctions/")
+def create_sanction(data: SanctionCreate, db: Session = Depends(get_db)):
+    sanction = Sanction(**data.model_dump())
+    db.add(sanction)
     db.commit()
-    return {"message": "Supprimée"}
+    db.refresh(sanction)
+    return sanction
+
+
+@router.get("/sanctions/")
+def list_sanctions(db: Session = Depends(get_db)):
+    return db.query(Sanction).all()
+
 
 @router.get("/sanctions/active")
 def get_active_sanctions(db: Session = Depends(get_db)):
     """Retourne les sanctions déclenchées aujourd'hui."""
-    today = datetime.utcnow().date()
+    today = datetime.now(timezone.utc).date()
     logs = (
         db.query(SanctionLog, Sanction)
         .join(Sanction, SanctionLog.sanction_id == Sanction.id)
@@ -125,3 +99,13 @@ def get_active_sanctions(db: Session = Depends(get_db)):
         {"sanction": s.name, "reason": sl.reason, "triggered_at": sl.triggered_at}
         for sl, s in logs
     ]
+
+
+@router.delete("/sanctions/{sanction_id}")
+def delete_sanction(sanction_id: int, db: Session = Depends(get_db)):
+    sanction = db.query(Sanction).filter(Sanction.id == sanction_id).first()
+    if not sanction:
+        raise HTTPException(status_code=404, detail="Introuvable")
+    db.delete(sanction)
+    db.commit()
+    return {"message": "Supprimée"}

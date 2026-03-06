@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
-from datetime import date
 
 from app.db import get_db
 from app.services.scoring_service import (

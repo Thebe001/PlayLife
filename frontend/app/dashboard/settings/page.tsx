@@ -1,8 +1,35 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
+import { API } from "@/lib/api"
 
-const API = "http://localhost:8000"
+// ── Emoji picker data ──────────────────────────────────────────────────────
+const EMOJI_CATEGORIES = [
+  {
+    label: "Vie & Objectifs",
+    emojis: ["🎯","🏆","⚡","🚀","💡","🔥","💎","⭐","🌟","✨","🎖️","🏅","🥇","🎗️","🏁"],
+  },
+  {
+    label: "Santé & Sport",
+    emojis: ["💪","🏃","🧘","🥗","😴","❤️","🧠","🦷","👁️","🏋️","⚽","🎾","🚴","🤸","🥊"],
+  },
+  {
+    label: "Travail & Finance",
+    emojis: ["💼","💰","📈","💻","🖥️","📊","🏦","💳","📝","🗂️","📋","✅","🔑","🏢","📱"],
+  },
+  {
+    label: "Apprentissage",
+    emojis: ["📚","🎓","✏️","🔬","🔭","🎨","🎵","🎸","📖","🗺️","🧪","🖊️","📐","🏫","🧮"],
+  },
+  {
+    label: "Relations & Bien-être",
+    emojis: ["👨‍👩‍👧","🤝","❤️‍🔥","🫂","😊","🌿","🌸","☀️","🌙","🎭","🕊️","🌈","🍀","🌻","🧡"],
+  },
+  {
+    label: "Maison & Lifestyle",
+    emojis: ["🏠","🍳","🌱","🐕","✈️","🚗","🎮","📸","🛋️","🧹","🍽️","☕","🛁","🌍","🎬"],
+  },
+]
 
 interface Pillar {
   id: number
@@ -32,6 +59,119 @@ interface Sanction {
 
 type Tab = "pillars" | "rewards" | "sanctions"
 
+// ── Emoji Picker Component ─────────────────────────────────────────────────
+function EmojiPicker({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (emoji: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [])
+
+  const allEmojis = EMOJI_CATEGORIES.flatMap((c) => c.emojis)
+  const filtered = search
+    ? allEmojis.filter((e) => e.includes(search))
+    : null
+
+  return (
+    <div ref={ref} className="relative">
+      <label className="text-xs text-gray-500 mb-1 block">Icône</label>
+
+      {/* Trigger button */}
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="w-full bg-gray-800 border border-gray-700 hover:border-blue-500 rounded-lg px-3 py-2.5 text-white text-sm flex items-center gap-2 transition-colors focus:outline-none focus:border-blue-500"
+      >
+        <span className="text-xl">{value}</span>
+        <span className="text-gray-500 text-xs flex-1 text-left">Choisir une icône</span>
+        <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Dropdown */}
+      {open && (
+        <div className="absolute z-50 top-full left-0 mt-1 w-72 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
+
+          {/* Search */}
+          <div className="p-2 border-b border-gray-800">
+            <input
+              type="text"
+              placeholder="Rechercher un emoji..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-white text-xs placeholder-gray-600 focus:outline-none focus:border-blue-500"
+              autoFocus
+            />
+          </div>
+
+          {/* Emoji grid */}
+          <div className="overflow-y-auto max-h-64 p-2 space-y-3">
+            {filtered ? (
+              <div>
+                <p className="text-xs text-gray-600 mb-1 px-1">Résultats</p>
+                <div className="grid grid-cols-8 gap-1">
+                  {filtered.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => { onChange(emoji); setOpen(false); setSearch("") }}
+                      className={`text-xl p-1 rounded hover:bg-gray-700 transition-colors ${value === emoji ? "bg-blue-600/30 ring-1 ring-blue-500" : ""}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                  {filtered.length === 0 && (
+                    <p className="col-span-8 text-xs text-gray-600 text-center py-2">Aucun résultat</p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              EMOJI_CATEGORIES.map((cat) => (
+                <div key={cat.label}>
+                  <p className="text-xs text-gray-600 mb-1 px-1">{cat.label}</p>
+                  <div className="grid grid-cols-8 gap-1">
+                    {cat.emojis.map((emoji) => (
+                      <button
+                        key={emoji}
+                        type="button"
+                        onClick={() => { onChange(emoji); setOpen(false) }}
+                        className={`text-xl p-1 rounded hover:bg-gray-700 transition-colors ${value === emoji ? "bg-blue-600/30 ring-1 ring-blue-500" : ""}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Current selection */}
+          <div className="px-3 py-2 border-t border-gray-800 flex items-center gap-2">
+            <span className="text-xl">{value}</span>
+            <span className="text-xs text-gray-500">Sélectionné</span>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main Settings Page ─────────────────────────────────────────────────────
 export default function Settings() {
   const [tab, setTab] = useState<Tab>("pillars")
   const [pillars, setPillars] = useState<Pillar[]>([])
@@ -40,30 +180,30 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saved, setSaved] = useState(false)
 
-  // Pillar form
   const [pillarForm, setPillarForm] = useState({
-    name: "", icon: "⭐", color: "#3b82f6", weight_pct: 20
+    name: "", icon: "⭐", color: "#3b82f6", weight_pct: 20,
   })
-
-  // Reward form
   const [rewardForm, setRewardForm] = useState({
-    name: "", level_required: "bronze", reward_type: "consumable", cooldown_days: 0
+    name: "", level_required: "bronze", reward_type: "consumable", cooldown_days: 0,
   })
-
-  // Sanction form
   const [sanctionForm, setSanctionForm] = useState({
-    name: "", description: "", trigger_threshold: 40, consecutive_days: 1
+    name: "", description: "", trigger_threshold: 40, consecutive_days: 1,
   })
 
   const fetchAll = async () => {
-    const [pRes, rRes, sRes] = await Promise.all([
-      fetch(`${API}/pillars/`),
-      fetch(`${API}/rewards/`),
-      fetch(`${API}/rewards/sanctions/`),
-    ])
-    setPillars(await pRes.json())
-    setRewards(await rRes.json())
-    setSanctions(await sRes.json())
+    try {
+      const [pRes, rRes, sRes] = await Promise.all([
+        fetch(`${API}/pillars/`),
+        fetch(`${API}/rewards/`),
+        fetch(`${API}/rewards/sanctions/`),
+      ])
+      if (!pRes.ok || !rRes.ok || !sRes.ok) throw new Error("fetch failed")
+      setPillars(await pRes.json())
+      setRewards(await rRes.json())
+      setSanctions(await sRes.json())
+    } catch (e) {
+      console.error("Settings fetchAll:", e)
+    }
     setLoading(false)
   }
 
@@ -73,8 +213,6 @@ export default function Settings() {
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
-
-  // ── Pillar actions ──────────────────────────────────
 
   const createPillar = async () => {
     if (!pillarForm.name.trim()) return
@@ -93,8 +231,6 @@ export default function Settings() {
     await fetchAll()
   }
 
-  // ── Reward actions ──────────────────────────────────
-
   const createReward = async () => {
     if (!rewardForm.name.trim()) return
     await fetch(`${API}/rewards/`, {
@@ -111,8 +247,6 @@ export default function Settings() {
     await fetch(`${API}/rewards/${id}`, { method: "DELETE" })
     await fetchAll()
   }
-
-  // ── Sanction actions ────────────────────────────────
 
   const createSanction = async () => {
     if (!sanctionForm.name.trim()) return
@@ -173,7 +307,6 @@ export default function Settings() {
       {/* ── PILIERS ── */}
       {tab === "pillars" && (
         <div className="space-y-4">
-          {/* Weight warning */}
           {totalWeight !== 100 && (
             <div className={`px-4 py-3 rounded-xl text-sm border ${
               totalWeight > 100
@@ -207,10 +340,7 @@ export default function Settings() {
                     <span className="text-sm text-white">{pillar.name}</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span
-                      className="text-sm font-semibold"
-                      style={{ color: pillar.color }}
-                    >
+                    <span className="text-sm font-semibold" style={{ color: pillar.color }}>
                       {pillar.weight_pct}%
                     </span>
                     <button
@@ -239,16 +369,13 @@ export default function Settings() {
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">Icône</label>
-                <input
-                  type="text"
-                  placeholder="💼"
-                  value={pillarForm.icon}
-                  onChange={(e) => setPillarForm({ ...pillarForm, icon: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
-                />
-              </div>
+
+              {/* ✅ Emoji Picker remplace le champ texte */}
+              <EmojiPicker
+                value={pillarForm.icon}
+                onChange={(emoji) => setPillarForm({ ...pillarForm, icon: emoji })}
+              />
+
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Couleur</label>
                 <div className="flex gap-2 items-center">
@@ -261,6 +388,7 @@ export default function Settings() {
                   <span className="text-xs text-gray-500">{pillarForm.color}</span>
                 </div>
               </div>
+
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Poids (%)</label>
                 <input
@@ -286,7 +414,6 @@ export default function Settings() {
       {/* ── REWARDS ── */}
       {tab === "rewards" && (
         <div className="space-y-4">
-          {/* Existing rewards */}
           {rewards.length > 0 && (
             <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-800">
@@ -321,23 +448,25 @@ export default function Settings() {
             </div>
           )}
 
-          {/* Add reward form */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-4">
             <h3 className="text-sm font-semibold text-gray-300">Nouvelle récompense</h3>
-            <input
-              type="text"
-              placeholder="ex: Regarder un film"
-              value={rewardForm.name}
-              onChange={(e) => setRewardForm({ ...rewardForm, name: e.target.value })}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
-            />
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 mb-1 block">Nom</label>
+                <input
+                  type="text"
+                  placeholder="ex: Regarder un film"
+                  value={rewardForm.name}
+                  onChange={(e) => setRewardForm({ ...rewardForm, name: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Niveau requis</label>
                 <select
                   value={rewardForm.level_required}
                   onChange={(e) => setRewardForm({ ...rewardForm, level_required: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 >
                   <option value="bronze">Bronze</option>
                   <option value="silver">Argent</option>
@@ -350,20 +479,20 @@ export default function Settings() {
                 <select
                   value={rewardForm.reward_type}
                   onChange={(e) => setRewardForm({ ...rewardForm, reward_type: e.target.value })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 >
                   <option value="consumable">Consommable</option>
                   <option value="oneshot">One-shot</option>
                 </select>
               </div>
-              <div>
+              <div className="col-span-2">
                 <label className="text-xs text-gray-500 mb-1 block">Cooldown (jours)</label>
                 <input
                   type="number"
                   min={0}
                   value={rewardForm.cooldown_days}
                   onChange={(e) => setRewardForm({ ...rewardForm, cooldown_days: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -380,7 +509,6 @@ export default function Settings() {
       {/* ── SANCTIONS ── */}
       {tab === "sanctions" && (
         <div className="space-y-4">
-          {/* Existing sanctions */}
           {sanctions.length > 0 && (
             <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
               <div className="px-5 py-3 border-b border-gray-800">
@@ -395,13 +523,9 @@ export default function Settings() {
                         <p className="text-xs text-gray-500 mt-0.5">{sanction.description}</p>
                       )}
                       <div className="flex gap-2 mt-1">
-                        <span className="text-xs text-red-400">
-                          Seuil : {sanction.trigger_threshold}%
-                        </span>
+                        <span className="text-xs text-red-400">Seuil : {sanction.trigger_threshold}%</span>
                         <span className="text-xs text-gray-600">•</span>
-                        <span className="text-xs text-gray-500">
-                          {sanction.consecutive_days} jour(s) consécutif(s)
-                        </span>
+                        <span className="text-xs text-gray-500">{sanction.consecutive_days} jour(s) consécutif(s)</span>
                       </div>
                     </div>
                     <button
@@ -415,51 +539,30 @@ export default function Settings() {
               </div>
             </div>
           )}
-          
-          {/* Backup Section */}
-<div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-  <h3 className="text-sm font-semibold text-gray-300 mb-1">💾 Backup & Export</h3>
-  <p className="text-xs text-gray-600 mb-4">Exporte toutes tes données en JSON.</p>
-  <div className="flex gap-3">
-    <a
-      href="http://localhost:8000/backup/export"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="px-4 py-2.5 bg-green-700 hover:bg-green-800 rounded-lg text-white text-sm font-medium transition-colors"
-      >
-    
-      ⬇️ Télécharger backup JSON
-    </a>
-    <button
-      onClick={async () => {
-        const res = await fetch("http://localhost:8000/backup/stats")
-        const data = await res.json()
-        alert(`📊 Stats DB:\n${Object.entries(data).map(([k,v]) => `${k}: ${v}`).join('\n')}`)
-      }}
-      className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
-    >
-      📊 Stats DB
-    </button>
-  </div>
-</div>
-          {/* Add sanction form */}
+
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-4">
             <h3 className="text-sm font-semibold text-gray-300">Nouvelle sanction</h3>
-            <input
-              type="text"
-              placeholder="ex: Pas de divertissement ce soir"
-              value={sanctionForm.name}
-              onChange={(e) => setSanctionForm({ ...sanctionForm, name: e.target.value })}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
-            />
-            <input
-              type="text"
-              placeholder="Description (optionnel)"
-              value={sanctionForm.description}
-              onChange={(e) => setSanctionForm({ ...sanctionForm, description: e.target.value })}
-              className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
-            />
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 mb-1 block">Nom</label>
+                <input
+                  type="text"
+                  placeholder="ex: Pas de réseaux sociaux"
+                  value={sanctionForm.name}
+                  onChange={(e) => setSanctionForm({ ...sanctionForm, name: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs text-gray-500 mb-1 block">Description</label>
+                <input
+                  type="text"
+                  placeholder="ex: Désactiver Instagram pour 24h"
+                  value={sanctionForm.description}
+                  onChange={(e) => setSanctionForm({ ...sanctionForm, description: e.target.value })}
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-blue-500"
+                />
+              </div>
               <div>
                 <label className="text-xs text-gray-500 mb-1 block">Seuil de déclenchement (%)</label>
                 <input
@@ -468,7 +571,7 @@ export default function Settings() {
                   max={100}
                   value={sanctionForm.trigger_threshold}
                   onChange={(e) => setSanctionForm({ ...sanctionForm, trigger_threshold: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
               <div>
@@ -478,7 +581,7 @@ export default function Settings() {
                   min={1}
                   value={sanctionForm.consecutive_days}
                   onChange={(e) => setSanctionForm({ ...sanctionForm, consecutive_days: Number(e.target.value) })}
-                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:border-blue-500"
+                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
@@ -488,6 +591,32 @@ export default function Settings() {
             >
               + Ajouter la sanction
             </button>
+          </div>
+
+          {/* Backup Section */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+            <h3 className="text-sm font-semibold text-gray-300 mb-1">💾 Backup & Export</h3>
+            <p className="text-xs text-gray-600 mb-4">Exporte toutes tes données en JSON.</p>
+            <div className="flex gap-3">
+              <a
+                href={`${API}/backup/export`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 bg-green-700 hover:bg-green-800 rounded-lg text-white text-sm font-medium transition-colors"
+              >
+                ⬇️ Télécharger backup JSON
+              </a>
+              <button
+                onClick={async () => {
+                  const res = await fetch(`${API}/backup/stats`)
+                  const data = await res.json()
+                  alert(`📊 Stats DB:\n${Object.entries(data).map(([k,v]) => `${k}: ${v}`).join('\n')}`)
+                }}
+                className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
+              >
+                📊 Stats DB
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -7,7 +7,7 @@ from app.schemas.habit_schema import HabitCreate
 
 
 def create_habit(db: Session, data: HabitCreate):
-    habit = Habit(**data.dict())
+    habit = Habit(**data.model_dump())
     db.add(habit)
     db.commit()
     db.refresh(habit)

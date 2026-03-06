@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface Habit {
   id: number

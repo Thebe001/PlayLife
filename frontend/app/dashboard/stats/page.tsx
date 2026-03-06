@@ -6,8 +6,7 @@ import {
   ResponsiveContainer, Legend
 } from "recharts"
 import WeeklyComparison from "@/components/weekly-comparison"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface HeatmapDay {
   date: string
@@ -46,16 +45,22 @@ export default function Stats() {
   const [progression, setProgression] = useState<ProgressionData | null>(null)
   const [period, setPeriod] = useState(30)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const fetchAll = async (days = 30) => {
-    const [hRes, oRes, pRes] = await Promise.all([
-      fetch(`${API}/stats/heatmap`),
-      fetch(`${API}/stats/overview`),
-      fetch(`${API}/stats/progression?days=${days}`),
-    ])
-    setHeatmap(await hRes.json())
-    setOverview(await oRes.json())
-    setProgression(await pRes.json())
+    try {
+      const [hRes, oRes, pRes] = await Promise.all([
+        fetch(`${API}/stats/heatmap`),
+        fetch(`${API}/stats/overview`),
+        fetch(`${API}/stats/progression?days=${days}`),
+      ])
+      if (!hRes.ok || !oRes.ok || !pRes.ok) throw new Error("fetch failed")
+      setHeatmap(await hRes.json())
+      setOverview(await oRes.json())
+      setProgression(await pRes.json())
+    } catch {
+      setError("Impossible de charger les statistiques.")
+    }
     setLoading(false)
   }
 
@@ -63,6 +68,10 @@ export default function Stats() {
 
   if (loading || !overview || !progression) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
+  }
+
+  if (error) {
+    return <div className="p-8 text-red-400 text-sm">{error}</div>
   }
 
   const mergedProgression = progression.global.map((g) => {

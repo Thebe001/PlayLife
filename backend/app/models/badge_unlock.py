@@ -8,7 +8,5 @@ class BadgeUnlock(Base):
     __tablename__ = "badge_unlocks"
 
     id = Column(Integer, primary_key=True, index=True)
-
-    badge_id = Column(Integer, ForeignKey("badges.id"))
-
+    badge_id = Column(Integer, ForeignKey("badges.id"), unique=True, nullable=False)
     unlocked_at = Column(Date, default=date.today)

@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface JournalEntry {
   id: number
@@ -21,6 +20,7 @@ const TAGS_OPTIONS = ["productif", "stressé", "motivé", "fatigué", "focus", "
 export default function Journal() {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [view, setView] = useState<"write" | "history">("write")
 
   const today = new Date().toISOString().split("T")[0]
@@ -34,9 +34,14 @@ export default function Journal() {
   })
 
   const fetchEntries = async () => {
-    const res = await fetch(`${API}/journal/`)
-    const data = await res.json()
-    setEntries(data)
+    try {
+      const res = await fetch(`${API}/journal/`)
+      if (!res.ok) throw new Error(`${res.status}`)
+      const data = await res.json()
+      setEntries(data)
+    } catch {
+      setError("Impossible de charger le journal.")
+    }
     setLoading(false)
   }
 
@@ -55,27 +60,35 @@ export default function Journal() {
 
   const saveEntry = async () => {
     if (!form.content.trim()) return
-    await fetch(`${API}/journal/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        date: today,
-        content: form.content,
-        mood: form.mood,
-        energy: form.energy,
-        highlight: form.highlight,
-        tags: form.tags.join(","),
-      }),
-    })
-    setForm({ content: "", mood: 3, energy: 3, highlight: "", tags: [] })
-    await fetchEntries()
-    setView("history")
+    try {
+      await fetch(`${API}/journal/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: today,
+          content: form.content,
+          mood: form.mood,
+          energy: form.energy,
+          highlight: form.highlight,
+          tags: form.tags.join(","),
+        }),
+      })
+      setForm({ content: "", mood: 3, energy: 3, highlight: "", tags: [] })
+      await fetchEntries()
+      setView("history")
+    } catch {
+      setError("Erreur lors de la sauvegarde.")
+    }
   }
 
   const todayEntry = entries.find((e) => e.date === today)
 
   if (loading) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
+  }
+
+  if (error) {
+    return <div className="p-8 text-red-400 text-sm">{error}</div>
   }
 
   return (

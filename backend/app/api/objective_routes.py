@@ -5,40 +5,15 @@ from typing import Optional
 from app.db import get_db
 from app.models.objective import Objective
 from app.models.task import Task
-from pydantic import BaseModel
+from app.schemas.objective_schema import ObjectiveCreate, ObjectiveUpdate, TaskCreate
 from datetime import date
 
 router = APIRouter(prefix="/objectives", tags=["Objectives"])
 
 
-class ObjectiveCreate(BaseModel):
-    pillar_id: int
-    title: str
-    description: Optional[str] = None
-    horizon: str = "monthly"  # weekly / monthly / yearly
-    deadline: Optional[date] = None
-
-
-class ObjectiveUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
-    completion_pct: Optional[float] = None
-    status: Optional[str] = None
-    deadline: Optional[date] = None
-
-
-class TaskCreate(BaseModel):
-    objective_id: Optional[int] = None
-    pillar_id: int
-    title: str
-    points: int = 20
-    difficulty: str = "medium"  # easy / medium / hard
-    due_date: Optional[date] = None
-
-
 @router.post("/")
 def create_objective(data: ObjectiveCreate, db: Session = Depends(get_db)):
-    obj = Objective(**data.dict())
+    obj = Objective(**data.model_dump())
     db.add(obj)
     db.commit()
     db.refresh(obj)
@@ -76,7 +51,7 @@ def update_objective(obj_id: int, data: ObjectiveUpdate, db: Session = Depends(g
     obj = db.query(Objective).filter(Objective.id == obj_id).first()
     if not obj:
         raise HTTPException(status_code=404, detail="Objectif introuvable")
-    for key, val in data.dict(exclude_none=True).items():
+    for key, val in data.model_dump(exclude_none=True).items():
         setattr(obj, key, val)
     db.commit()
     db.refresh(obj)
@@ -97,7 +72,7 @@ def delete_objective(obj_id: int, db: Session = Depends(get_db)):
 
 @router.post("/tasks/")
 def create_task(data: TaskCreate, db: Session = Depends(get_db)):
-    task = Task(**data.dict())
+    task = Task(**data.model_dump())
     db.add(task)
     db.commit()
     db.refresh(task)

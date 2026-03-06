@@ -1,129 +1,149 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import Optional
-from datetime import datetime
+from datetime import date, timedelta
 from pydantic import BaseModel
 
 from app.db import get_db
-from app.models.reward import Reward
-from app.models.reward_log import RewardLog
-from app.models.sanction import Sanction
-from app.models.sanction_log import SanctionLog
+from app.models.review import Review
+from app.models.global_score import GlobalScore
+from app.models.daily_score import DailyScore
+from app.models.habit_log import HabitLog
+from app.models.journal_entry import JournalEntry
+from app.models.pillar import Pillar
+from app.services.review_service import generate_review_content, get_reviews, delete_review
 
-router = APIRouter(prefix="/rewards", tags=["Rewards & Sanctions"])
-
-
-class RewardCreate(BaseModel):
-    name: str
-    level_required: str = "bronze"
-    reward_type: str = "consumable"
-    cooldown_days: int = 0
+router = APIRouter(prefix="/reviews", tags=["Reviews"])
 
 
-class SanctionCreate(BaseModel):
-    name: str
-    description: Optional[str] = None
-    trigger_threshold: float = 40.0
-    consecutive_days: int = 1
+class ReviewUpdate(BaseModel):
+    type: str
+    period_start: str
+    period_end: str
+    content: str
+    edited_content: Optional[str] = None
 
 
-# ── Rewards ────────────────────────────────────────────
+# ── Génération ─────────────────────────────────────────
 
-@router.post("/")
-def create_reward(data: RewardCreate, db: Session = Depends(get_db)):
-    reward = Reward(**data.dict())
-    db.add(reward)
-    db.commit()
-    db.refresh(reward)
-    return reward
+@router.post("/generate/{review_type}")
+async def generate_review(review_type: str, db: Session = Depends(get_db)):
+    """Génère une review hebdo ou mensuelle via LLM avec les vraies stats."""
+    if review_type not in ("weekly", "monthly"):
+        raise HTTPException(status_code=400, detail="Type invalide. Utilise 'weekly' ou 'monthly'.")
 
+    today = date.today()
 
-@router.get("/")
-def list_rewards(db: Session = Depends(get_db)):
-    return db.query(Reward).filter(Reward.is_active == True).all()
+    if review_type == "weekly":
+        # Lundi → aujourd'hui
+        period_start = today - timedelta(days=today.weekday())
+        period_end = today
+    else:
+        # 1er du mois → aujourd'hui
+        period_start = today.replace(day=1)
+        period_end = today
 
-
-@router.post("/{reward_id}/consume")
-def consume_reward(reward_id: int, db: Session = Depends(get_db)):
-    reward = db.query(Reward).filter(Reward.id == reward_id).first()
-    if not reward:
-        raise HTTPException(status_code=404, detail="Récompense introuvable")
-
-    if reward.cooldown_days > 0:
-        last_use = (
-            db.query(RewardLog)
-            .filter(RewardLog.reward_id == reward_id)
-            .order_by(RewardLog.consumed_at.desc())
-            .first()
-        )
-        if last_use:
-            delta = datetime.utcnow() - last_use.consumed_at
-            if delta.days < reward.cooldown_days:
-                remaining = reward.cooldown_days - delta.days
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Cooldown actif — disponible dans {remaining} jour(s)"
-                )
-
-    log = RewardLog(reward_id=reward_id)
-    db.add(log)
-
-    if reward.reward_type == "oneshot":
-        reward.is_active = False
-
-    db.commit()
-    return {"message": f"Récompense '{reward.name}' consommée 🎉"}
-
-
-@router.delete("/{reward_id}")
-def delete_reward(reward_id: int, db: Session = Depends(get_db)):
-    reward = db.query(Reward).filter(Reward.id == reward_id).first()
-    if not reward:
-        raise HTTPException(status_code=404, detail="Introuvable")
-    db.delete(reward)
-    db.commit()
-    return {"message": "Supprimée"}
-
-
-# ── Sanctions ──────────────────────────────────────────
-# IMPORTANT: routes statiques (/sanctions/, /sanctions/active)
-# AVANT les routes dynamiques (/sanctions/{id})
-
-@router.post("/sanctions/")
-def create_sanction(data: SanctionCreate, db: Session = Depends(get_db)):
-    sanction = Sanction(**data.dict())
-    db.add(sanction)
-    db.commit()
-    db.refresh(sanction)
-    return sanction
-
-
-@router.get("/sanctions/")
-def list_sanctions(db: Session = Depends(get_db)):
-    return db.query(Sanction).all()
-
-
-@router.get("/sanctions/active")
-def get_active_sanctions(db: Session = Depends(get_db)):
-    """Retourne les sanctions déclenchées aujourd'hui."""
-    today = datetime.utcnow().date()
-    logs = (
-        db.query(SanctionLog, Sanction)
-        .join(Sanction, SanctionLog.sanction_id == Sanction.id)
-        .filter(SanctionLog.triggered_at >= today)
+    # ── Collecte des stats ──────────────────────────────
+    scores = (
+        db.query(GlobalScore)
+        .filter(GlobalScore.date >= period_start, GlobalScore.date <= period_end)
+        .order_by(GlobalScore.date.asc())
         .all()
     )
-    return [
-        {"sanction": s.name, "reason": sl.reason, "triggered_at": sl.triggered_at}
-        for sl, s in logs
-    ]
+    avg_score = round(sum(s.score_global for s in scores) / len(scores), 1) if scores else 0
+    best_score = max((s.score_global for s in scores), default=0)
+    worst_score = min((s.score_global for s in scores), default=0)
 
+    total_checks = (
+        db.query(HabitLog)
+        .filter(
+            HabitLog.date >= period_start,
+            HabitLog.date <= period_end,
+            HabitLog.checked == True,
+        )
+        .count()
+    )
 
-@router.delete("/sanctions/{sanction_id}")
-def delete_sanction(sanction_id: int, db: Session = Depends(get_db)):
-    sanction = db.query(Sanction).filter(Sanction.id == sanction_id).first()
-    if not sanction:
-        raise HTTPException(status_code=404, detail="Introuvable")
-    db.delete(sanction)
+    pillars = db.query(Pillar).filter(Pillar.is_active == True).all()
+    pillar_avgs = []
+    for p in pillars:
+        pillar_scores = (
+            db.query(DailyScore)
+            .filter(
+                DailyScore.pillar_id == p.id,
+                DailyScore.date >= period_start,
+                DailyScore.date <= period_end,
+            )
+            .all()
+        )
+        if pillar_scores:
+            avg = round(sum(ps.score_pct for ps in pillar_scores) / len(pillar_scores), 1)
+            pillar_avgs.append({"name": p.name, "avg": avg})
+
+    journal_entries = (
+        db.query(JournalEntry)
+        .filter(
+            JournalEntry.date >= period_start,
+            JournalEntry.date <= period_end,
+        )
+        .all()
+    )
+    mood_entries = [e for e in journal_entries if e.mood and e.mood > 0]
+    avg_mood = round(sum(e.mood for e in mood_entries) / len(mood_entries), 1) if mood_entries else None
+    highlights = [e.highlight for e in journal_entries if e.highlight]
+
+    stats = {
+        "type": review_type,
+        "period_start": str(period_start),
+        "period_end": str(period_end),
+        "avg_score": avg_score,
+        "best_score": best_score,
+        "worst_score": worst_score,
+        "total_days": len(scores),
+        "total_habit_checks": total_checks,
+        "pillar_avgs": pillar_avgs,
+        "avg_mood": avg_mood,
+        "highlights": highlights[:5],
+    }
+
+    # ── Génération du contenu ───────────────────────────
+    content = await generate_review_content(stats)
+
+    # ── Sauvegarde ──────────────────────────────────────
+    review = Review(
+        type=review_type,
+        period_start=period_start,
+        period_end=period_end,
+        content=content,
+        llm_generated=True,
+    )
+    db.add(review)
     db.commit()
+    db.refresh(review)
+    return review
+
+
+# ── CRUD ───────────────────────────────────────────────
+
+@router.get("/")
+def list_reviews(db: Session = Depends(get_db)):
+    return get_reviews(db)
+
+
+@router.put("/{review_id}")
+def update_review(review_id: int, data: ReviewUpdate, db: Session = Depends(get_db)):
+    review = db.query(Review).filter(Review.id == review_id).first()
+    if not review:
+        raise HTTPException(status_code=404, detail="Review introuvable")
+    review.edited_content = data.edited_content
+    db.commit()
+    db.refresh(review)
+    return review
+
+
+@router.delete("/{review_id}")
+def remove_review(review_id: int, db: Session = Depends(get_db)):
+    result = delete_review(db, review_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="Review introuvable")
     return {"message": "Supprimée"}

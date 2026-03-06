@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-
-const API = "http://localhost:8000"
+import { API } from "@/lib/api"
 
 interface Task {
   id: number
@@ -52,6 +51,7 @@ export default function Objectives() {
   const [objectives, setObjectives] = useState<Objective[]>([])
   const [pillars, setPillars] = useState<Pillar[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [taskForms, setTaskForms] = useState<Record<number, NewTaskForm>>({})
@@ -66,24 +66,29 @@ export default function Objectives() {
   })
 
   const fetchAll = async () => {
-    const [objRes, pillarRes] = await Promise.all([
-      fetch(`${API}/objectives/`),
-      fetch(`${API}/pillars/`),
-    ])
-    const objs: Objective[] = await objRes.json()
-    const pils: Pillar[] = await pillarRes.json()
+    try {
+      const [objRes, pillarRes] = await Promise.all([
+        fetch(`${API}/objectives/`),
+        fetch(`${API}/pillars/`),
+      ])
+      if (!objRes.ok || !pillarRes.ok) throw new Error("fetch failed")
+      const objs: Objective[] = await objRes.json()
+      const pils: Pillar[] = await pillarRes.json()
 
-    // Fetch tasks for each objective
-    const objsWithTasks = await Promise.all(
-      objs.map(async (obj) => {
-        const res = await fetch(`${API}/objectives/${obj.id}`)
-        const data = await res.json()
-        return { ...obj, tasks: data.tasks ?? [] }
-      })
-    )
+      // Fetch tasks for each objective
+      const objsWithTasks = await Promise.all(
+        objs.map(async (obj) => {
+          const res = await fetch(`${API}/objectives/${obj.id}`)
+          const data = await res.json()
+          return { ...obj, tasks: data.tasks ?? [] }
+        })
+      )
 
-    setObjectives(objsWithTasks)
-    setPillars(pils)
+      setObjectives(objsWithTasks)
+      setPillars(pils)
+    } catch {
+      setError("Impossible de charger les objectifs.")
+    }
     setLoading(false)
   }
 

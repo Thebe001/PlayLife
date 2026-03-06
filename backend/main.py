@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.db import engine, Base
 
 # Import all models so SQLAlchemy creates the tables
@@ -39,13 +40,13 @@ from app.api import objective_routes, reward_routes, skilltree_routes
 
 app = FastAPI(
     title="LifeForge OS API",
-    version="0.3.0",
+    version=settings.APP_VERSION,
     description="Your Personal Life Operating System — Backend API",
 )
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -72,8 +73,8 @@ app.include_router(skilltree_routes.router)
 def root():
     return {
         "message": "LifeForge OS backend running ✓",
-        "version": "0.3.0",
-        "docs": "http://localhost:8000/docs",
+        "version": settings.APP_VERSION,
+        "docs": "/docs",
     }
 
 

@@ -19,6 +19,8 @@ class TextCommand(BaseModel):
 @router.post("/transcribe")
 async def transcribe(audio: UploadFile = File(...)):
     """Transcrit un fichier audio en texte via Whisper."""
+    if audio.size and audio.size > 25 * 1024 * 1024:  # 25 MB limit
+        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 25 MB)")
     contents = await audio.read()
     ext = audio.filename.split(".")[-1] if audio.filename else "webm"
 
@@ -52,6 +54,8 @@ async def process_command(body: TextCommand, db: Session = Depends(get_db)):
 @router.post("/voice-command")
 async def voice_command(audio: UploadFile = File(...), db: Session = Depends(get_db)):
     """Pipeline complet : audio → texte → LLM → action."""
+    if audio.size and audio.size > 25 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Fichier trop volumineux (max 25 MB)")
     contents = await audio.read()
     ext = audio.filename.split(".")[-1] if audio.filename else "webm"
 

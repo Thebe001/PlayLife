@@ -1,4 +1,7 @@
 import { create } from "zustand"
+import { API } from "./api"
+
+// ── Types ──────────────────────────────────────────────
 
 interface PillarScore {
   pillar_id: number
@@ -24,28 +27,82 @@ interface Pillar {
   weight_pct: number
 }
 
-interface AppStore {
-  todaySummary: TodaySummary | null
-  pillars: Pillar[]
-  fetchTodaySummary: () => Promise<void>
-  fetchPillars: () => Promise<void>
+interface GamificationSummary {
+  total_xp: number
+  level: { name: string; min_xp: number; max_xp: number }
+  streak: number
+  badges: { id: number; name: string; icon: string; description: string; unlocked_at: string }[]
 }
 
-const API = "http://localhost:8000"
+interface AppStore {
+  // State
+  todaySummary: TodaySummary | null
+  pillars: Pillar[]
+  gamification: GamificationSummary | null
+  isRefreshing: boolean
+
+  // Actions
+  fetchTodaySummary: () => Promise<void>
+  fetchPillars: () => Promise<void>
+  fetchGamification: () => Promise<void>
+  refreshScores: () => Promise<void>
+}
+
+// ── Store ──────────────────────────────────────────────
 
 export const useAppStore = create<AppStore>((set) => ({
   todaySummary: null,
   pillars: [],
+  gamification: null,
+  isRefreshing: false,
 
   fetchTodaySummary: async () => {
-    const res = await fetch(`${API}/score/today`)
-    const data = await res.json()
-    set({ todaySummary: data })
+    try {
+      const res = await fetch(`${API}/score/today`)
+      if (!res.ok) return
+      const data = await res.json()
+      set({ todaySummary: data })
+    } catch (e) {
+      console.error("fetchTodaySummary:", e)
+    }
   },
 
   fetchPillars: async () => {
-    const res = await fetch(`${API}/pillars/`)
-    const data = await res.json()
-    set({ pillars: data })
+    try {
+      const res = await fetch(`${API}/pillars/`)
+      if (!res.ok) return
+      const data = await res.json()
+      set({ pillars: data })
+    } catch (e) {
+      console.error("fetchPillars:", e)
+    }
+  },
+
+  fetchGamification: async () => {
+    try {
+      const res = await fetch(`${API}/gamification/summary`)
+      if (!res.ok) return
+      const data = await res.json()
+      set({ gamification: data })
+    } catch (e) {
+      console.error("fetchGamification:", e)
+    }
+  },
+
+  refreshScores: async () => {
+    set({ isRefreshing: true })
+    try {
+      await fetch(`${API}/score/daily`, { method: "POST" })
+      await fetch(`${API}/score/global`, { method: "POST" })
+      const res = await fetch(`${API}/score/today`)
+      if (res.ok) {
+        const data = await res.json()
+        set({ todaySummary: data })
+      }
+    } catch (e) {
+      console.error("refreshScores:", e)
+    } finally {
+      set({ isRefreshing: false })
+    }
   },
 }))

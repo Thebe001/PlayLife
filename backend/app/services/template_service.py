@@ -4,7 +4,7 @@ from app.models.day_template import DayTemplate
 
 def create_template(db: Session, data):
 
-    template = DayTemplate(**data.dict())
+    template = DayTemplate(**data.model_dump())
 
     db.add(template)
     db.commit()
