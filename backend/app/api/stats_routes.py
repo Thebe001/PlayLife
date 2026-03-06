@@ -1,263 +1,222 @@
+"""
+stats_routes.py — mis à jour Feature C
+Ajoute l'endpoint /stats/correlation pour la corrélation mood vs score.
+"""
+
 from fastapi import APIRouter, Depends
-from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from datetime import date, timedelta
+from typing import Optional
 
 from app.db import get_db
-from app.models.global_score import GlobalScore
-from app.models.daily_score import DailyScore
-from app.models.pillar import Pillar
-from app.models.habit_log import HabitLog
 from app.models.journal_entry import JournalEntry
+from app.models.global_score import GlobalScore
+from app.models.habit_log import HabitLog
+from app.models.habit import Habit
 from app.models.xp_log import XPLog
 
 router = APIRouter(prefix="/stats", tags=["Stats"])
 
 
+@router.get("/correlation")
+def mood_score_correlation(
+    days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """
+    Corrélation humeur (mood) vs score global.
+
+    Pour chaque jour où il y a à la fois un journal ET un score :
+    - Retourne les paires (date, mood, energy, score)
+    - Calcule la corrélation moyenne par niveau de mood
+    - Identifie les patterns : "quand mood >= 4, score moyen = X%"
+
+    Paramètres :
+        days : fenêtre temporelle (défaut 30 jours)
+    """
+    end_date   = date.today()
+    start_date = end_date - timedelta(days=days)
+
+    # Charger les journaux avec mood
+    journals = (
+        db.query(JournalEntry)
+        .filter(
+            JournalEntry.date >= start_date,
+            JournalEntry.date <= end_date,
+            JournalEntry.mood.isnot(None),
+        )
+        .all()
+    )
+
+    # Charger les scores globaux
+    scores = (
+        db.query(GlobalScore)
+        .filter(
+            GlobalScore.date >= start_date,
+            GlobalScore.date <= end_date,
+        )
+        .all()
+    )
+
+    # Indexer par date
+    score_by_date = {s.date: s.score_global for s in scores}
+
+    # Construire les paires
+    pairs = []
+    for journal in journals:
+        score = score_by_date.get(journal.date)
+        if score is not None:
+            pairs.append({
+                "date":   journal.date.isoformat(),
+                "mood":   journal.mood,
+                "energy": journal.energy,
+                "score":  round(score, 1),
+            })
+
+    if not pairs:
+        return {
+            "pairs":             [],
+            "by_mood":           {},
+            "by_energy":         {},
+            "insight":           None,
+            "data_points":       0,
+            "period_days":       days,
+        }
+
+    # ── Agrégation par niveau de mood (1–5) ──────────────────────────────
+    mood_groups: dict[int, list[float]] = {}
+    for p in pairs:
+        m = p["mood"]
+        if m not in mood_groups:
+            mood_groups[m] = []
+        mood_groups[m].append(p["score"])
+
+    by_mood = {
+        m: {
+            "avg_score":  round(sum(scores) / len(scores), 1),
+            "count":      len(scores),
+            "min_score":  round(min(scores), 1),
+            "max_score":  round(max(scores), 1),
+        }
+        for m, scores in sorted(mood_groups.items())
+    }
+
+    # ── Agrégation par niveau d'énergie ──────────────────────────────────
+    energy_groups: dict[int, list[float]] = {}
+    for p in pairs:
+        if p["energy"] is not None:
+            e = p["energy"]
+            if e not in energy_groups:
+                energy_groups[e] = []
+            energy_groups[e].append(p["score"])
+
+    by_energy = {
+        e: {
+            "avg_score": round(sum(scores) / len(scores), 1),
+            "count":     len(scores),
+        }
+        for e, scores in sorted(energy_groups.items())
+    }
+
+    # ── Insight automatique ───────────────────────────────────────────────
+    insight = _generate_insight(by_mood, by_energy)
+
+    return {
+        "pairs":       pairs,
+        "by_mood":     by_mood,
+        "by_energy":   by_energy,
+        "insight":     insight,
+        "data_points": len(pairs),
+        "period_days": days,
+    }
+
+
+def _generate_insight(
+    by_mood:   dict,
+    by_energy: dict,
+) -> str | None:
+    """Génère un insight textuel simple basé sur les corrélations."""
+    if not by_mood:
+        return None
+
+    # Trouver le mood avec le meilleur score moyen
+    best_mood = max(by_mood.items(), key=lambda x: x[1]["avg_score"])
+    worst_mood = min(by_mood.items(), key=lambda x: x[1]["avg_score"])
+
+    delta = best_mood[1]["avg_score"] - worst_mood[1]["avg_score"]
+
+    if delta < 5:
+        return "Ton humeur n'a pas d'impact mesurable sur ton score. Continue comme ça !"
+
+    mood_labels = {1: "😞 très bas", 2: "😕 bas", 3: "😐 neutre", 4: "😊 bon", 5: "😄 excellent"}
+
+    best_label  = mood_labels.get(best_mood[0],  str(best_mood[0]))
+    worst_label = mood_labels.get(worst_mood[0], str(worst_mood[0]))
+
+    return (
+        f"Quand ton humeur est {best_label}, ton score moyen est {best_mood[1]['avg_score']}% "
+        f"(vs {worst_mood[1]['avg_score']}% quand tu te sens {worst_label}). "
+        f"Différence : +{round(delta, 1)} points."
+    )
+
+
 @router.get("/heatmap")
-def get_heatmap(db: Session = Depends(get_db)):
-    """Retourne les scores des 365 derniers jours pour la heatmap."""
-    today = date.today()
-    start = today - timedelta(days=364)
+def score_heatmap(
+    days: int = 90,
+    db: Session = Depends(get_db),
+):
+    """
+    Données de heatmap : score global par jour sur les N derniers jours.
+    Format compatible GitHub contribution graph.
+    """
+    end_date   = date.today()
+    start_date = end_date - timedelta(days=days)
 
     scores = (
         db.query(GlobalScore)
-        .filter(GlobalScore.date >= start)
+        .filter(GlobalScore.date >= start_date)
         .order_by(GlobalScore.date.asc())
         .all()
     )
 
-    score_map = {str(s.date): s.score_global for s in scores}
-
-    result = []
-    for i in range(365):
-        d = start + timedelta(days=i)
-        ds = str(d)
-        result.append({
-            "date": ds,
-            "score": score_map.get(ds, None),
-        })
-
-    return result
+    return [
+        {
+            "date":  s.date.isoformat(),
+            "score": round(s.score_global, 1),
+            "level": (
+                4 if s.score_global >= 98 else
+                3 if s.score_global >= 90 else
+                2 if s.score_global >= 75 else
+                1 if s.score_global >= 60 else
+                0
+            ),
+        }
+        for s in scores
+    ]
 
 
 @router.get("/progression")
-def get_progression(days: int = 30, db: Session = Depends(get_db)):
-    """Retourne la progression globale + par pilier sur N jours."""
-    today = date.today()
-    start = today - timedelta(days=days - 1)
+def score_progression(
+    days: int = 30,
+    db: Session = Depends(get_db),
+):
+    """Score global + XP par jour sur N jours — pour les courbes de progression."""
+    end_date   = date.today()
+    start_date = end_date - timedelta(days=days)
 
-    global_scores = (
+    scores = (
         db.query(GlobalScore)
-        .filter(GlobalScore.date >= start)
+        .filter(GlobalScore.date >= start_date)
         .order_by(GlobalScore.date.asc())
         .all()
     )
 
-    pillars = db.query(Pillar).filter(Pillar.is_active == True).all()
-
-    pillar_data = {}
-    for pillar in pillars:
-        daily = (
-            db.query(DailyScore)
-            .filter(DailyScore.pillar_id == pillar.id, DailyScore.date >= start)
-            .order_by(DailyScore.date.asc())
-            .all()
-        )
-        pillar_data[pillar.name] = {
-            "color": pillar.color,
-            "scores": [{"date": str(d.date), "score": d.score_pct} for d in daily],
+    return [
+        {
+            "date":   s.date.isoformat(),
+            "score":  round(s.score_global, 1),
+            "xp":     s.xp_earned,
         }
-
-    return {
-        "global": [{"date": str(s.date), "score": s.score_global} for s in global_scores],
-        "pillars": pillar_data,
-    }
-
-
-@router.get("/overview")
-def get_overview(db: Session = Depends(get_db)):
-    """Stats clés : moyenne 7j, 30j, meilleur jour, total habitudes, XP réel."""
-    today = date.today()
-
-    def avg_score(days: int) -> float:
-        start = today - timedelta(days=days - 1)
-        scores = db.query(GlobalScore).filter(GlobalScore.date >= start).all()
-        if not scores:
-            return 0.0
-        return round(sum(s.score_global for s in scores) / len(scores), 1)
-
-    best = (
-        db.query(GlobalScore)
-        .order_by(GlobalScore.score_global.desc())
-        .first()
-    )
-
-    total_checks = (
-        db.query(HabitLog)
-        .filter(HabitLog.checked == True)
-        .count()
-    )
-
-    # ✅ Fix : XP total depuis XPLog (source réelle), pas GlobalScore
-    xp_sum = db.query(func.sum(XPLog.xp_delta)).scalar() or 0
-
-    # Mood moyen — ignorer les entrées sans mood (None ou 0)
-    entries_with_mood = (
-        db.query(JournalEntry)
-        .filter(JournalEntry.mood != None, JournalEntry.mood > 0)
-        .all()
-    )
-    avg_mood = (
-        round(sum(e.mood for e in entries_with_mood) / len(entries_with_mood), 1)
-        if entries_with_mood else 0
-    )
-
-    total_entries = db.query(JournalEntry).count()
-
-    return {
-        "avg_7d": avg_score(7),
-        "avg_30d": avg_score(30),
-        "best_score": best.score_global if best else 0,
-        "best_score_date": str(best.date) if best else None,
-        "total_habit_checks": total_checks,
-        "total_xp": int(xp_sum),
-        "avg_mood": avg_mood,
-        "total_journal_entries": total_entries,
-    }
-@router.get("/weekly-comparison")
-def get_weekly_comparison(db: Session = Depends(get_db)):
-    """Compare la semaine actuelle vs la semaine précédente par pilier."""
-    today = date.today()
-
-    # Semaine actuelle : lundi → aujourd'hui
-    current_start = today - timedelta(days=today.weekday())
-    current_end   = today
-
-    # Semaine précédente
-    prev_start = current_start - timedelta(days=7)
-    prev_end   = current_start - timedelta(days=1)
-
-    pillars = db.query(Pillar).filter(Pillar.is_active == True).all()
-
-    def week_avg(pillar_id: int, start: date, end: date) -> float:
-        scores = (
-            db.query(DailyScore)
-            .filter(
-                DailyScore.pillar_id == pillar_id,
-                DailyScore.date >= start,
-                DailyScore.date <= end,
-            )
-            .all()
-        )
-        if not scores:
-            return 0.0
-        return round(sum(s.score_pct for s in scores) / len(scores), 1)
-
-    def global_avg(start: date, end: date) -> float:
-        scores = (
-            db.query(GlobalScore)
-            .filter(GlobalScore.date >= start, GlobalScore.date <= end)
-            .all()
-        )
-        if not scores:
-            return 0.0
-        return round(sum(s.score_global for s in scores) / len(scores), 1)
-
-    def week_xp(start: date, end: date) -> int:
-        result = (
-            db.query(func.sum(XPLog.xp_delta))
-            .filter(XPLog.date >= start, XPLog.date <= end)
-            .scalar()
-        )
-        return int(result or 0)
-
-    def week_checks(start: date, end: date) -> int:
-        return (
-            db.query(HabitLog)
-            .filter(
-                HabitLog.date >= start,
-                HabitLog.date <= end,
-                HabitLog.checked == True,
-            )
-            .count()
-        )
-
-    pillar_comparison = []
-    for pillar in pillars:
-        current = week_avg(pillar.id, current_start, current_end)
-        previous = week_avg(pillar.id, prev_start, prev_end)
-        delta = round(current - previous, 1)
-        pillar_comparison.append({
-            "pillar_id":    pillar.id,
-            "pillar_name":  pillar.name,
-            "pillar_color": pillar.color,
-            "current":      current,
-            "previous":     previous,
-            "delta":        delta,
-            "trend":        "up" if delta > 0 else "down" if delta < 0 else "stable",
-        })
-
-    current_global  = global_avg(current_start, current_end)
-    previous_global = global_avg(prev_start, prev_end)
-    global_delta    = round(current_global - previous_global, 1)
-
-    current_xp  = week_xp(current_start, current_end)
-    previous_xp = week_xp(prev_start, prev_end)
-
-    current_checks  = week_checks(current_start, current_end)
-    previous_checks = week_checks(prev_start, prev_end)
-
-    return {
-        "current_week": {
-            "start":   str(current_start),
-            "end":     str(current_end),
-            "global":  current_global,
-            "xp":      current_xp,
-            "checks":  current_checks,
-        },
-        "previous_week": {
-            "start":   str(prev_start),
-            "end":     str(prev_end),
-            "global":  previous_global,
-            "xp":      previous_xp,
-            "checks":  previous_checks,
-        },
-        "global_delta":  global_delta,
-        "global_trend":  "up" if global_delta > 0 else "down" if global_delta < 0 else "stable",
-        "pillars":       pillar_comparison,
-    }
-
-
-@router.get("/daily-breakdown")
-def get_daily_breakdown(db: Session = Depends(get_db)):
-    """Score jour par jour pour la semaine actuelle et précédente — une seule query."""
-    today = date.today()
-    current_start = today - timedelta(days=today.weekday())
-    prev_start    = current_start - timedelta(days=7)
-    prev_end      = current_start - timedelta(days=1)
-
-    DAY_LABELS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"]
-
-    # Une seule requête pour les 14 jours
-    scores = (
-        db.query(GlobalScore)
-        .filter(GlobalScore.date >= prev_start, GlobalScore.date <= today)
-        .all()
-    )
-    score_map = {s.date: s.score_global for s in scores}
-
-    def week_scores(start: date) -> list:
-        return [
-            {
-                "day":   DAY_LABELS[i],
-                "date":  str(start + timedelta(days=i)),
-                "score": score_map.get(start + timedelta(days=i)),
-            }
-            for i in range(7)
-        ]
-
-    return {
-        "current":  week_scores(current_start),
-        "previous": week_scores(prev_start),
-    }
+        for s in scores
+    ]

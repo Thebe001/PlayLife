@@ -20,7 +20,7 @@ from app.models import reward, reward_log, sanction, sanction_log
 from app.api import (
     pillar_routes, habit_routes, scoring_routes,
     gamification_routes, journal_routes, review_routes,
-    template_routes, stats_routes, voice_routes, backup_routes,
+    template_routes, stats_routes, voice_routes, backup_routes,sanction_routes
 )
 from app.api import objective_routes, reward_routes, skilltree_routes
 
@@ -63,6 +63,8 @@ app.include_router(stats_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(backup_routes.router)
 app.include_router(skilltree_routes.router)
+app.include_router(sanction_routes.router)
+
 
 
 @app.get("/")
