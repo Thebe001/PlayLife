@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip,
   ResponsiveContainer, Legend
 } from "recharts"
+import WeeklyComparison from "@/components/weekly-comparison"
 
 const API = "http://localhost:8000"
 
@@ -98,10 +99,10 @@ export default function Stats() {
       {/* KPIs */}
       <div className="grid grid-cols-4 gap-4">
         {[
-          { label: "Moyenne 7j",    value: `${overview.avg_7d}%`,                  color: "#3b82f6" },
-          { label: "Moyenne 30j",   value: `${overview.avg_30d}%`,                 color: "#a78bfa" },
-          { label: "Meilleur jour", value: `${overview.best_score}%`,              color: "#f59e0b" },
-          { label: "Total XP",      value: overview.total_xp.toLocaleString(),     color: "#22c55e" },
+          { label: "Moyenne 7j",    value: `${overview.avg_7d}%`,              color: "#3b82f6" },
+          { label: "Moyenne 30j",   value: `${overview.avg_30d}%`,             color: "#a78bfa" },
+          { label: "Meilleur jour", value: `${overview.best_score}%`,          color: "#f59e0b" },
+          { label: "Total XP",      value: overview.total_xp.toLocaleString(), color: "#22c55e" },
         ].map((kpi) => (
           <div key={kpi.label} className="bg-gray-900 rounded-xl border border-gray-800 p-4">
             <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">{kpi.label}</p>
@@ -224,6 +225,9 @@ export default function Stats() {
           </ResponsiveContainer>
         )}
       </div>
+
+      {/* ✅ Weekly Comparison — après le chart, pas dedans */}
+      <WeeklyComparison />
 
     </div>
   )

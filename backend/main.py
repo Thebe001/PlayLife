@@ -35,7 +35,7 @@ from app.api import (
     voice_routes,
     backup_routes,
 )
-from app.api import objective_routes, reward_routes
+from app.api import objective_routes, reward_routes, skilltree_routes
 
 app = FastAPI(
     title="LifeForge OS API",
@@ -65,6 +65,7 @@ app.include_router(reward_routes.router)
 app.include_router(stats_routes.router)
 app.include_router(voice_routes.router)
 app.include_router(backup_routes.router)
+app.include_router(skilltree_routes.router)
 
 
 @app.get("/")
