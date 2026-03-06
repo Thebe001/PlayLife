@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
 import { API } from "@/lib/api"
 import Link from "next/link"
+import { SCORE_TIERS } from "@/lib/score-utils"
 
 interface GamificationData {
   total_xp: number
@@ -15,19 +16,19 @@ interface GamificationData {
 }
 
 const LEVEL_COLORS: Record<string, string> = {
-  Bronze:  "#cd7f32",
-  Argent:  "#a8a9ad",
-  Or:      "#ffd700",
-  Diamant: "#b9f2ff",
+  Bronze:   "#cd7f32",
+  Argent:   "#a8a9ad",
+  Or:       "#ffd700",
+  Diamant:  "#b9f2ff",
   "Maître": "#ff6b9d",
 }
 
 export default function Gamification() {
-  const [data, setData] = useState<GamificationData | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData]           = useState<GamificationData | null>(null)
+  const [loading, setLoading]     = useState(true)
   const [consuming, setConsuming] = useState<number | null>(null)
   const [consumeMsg, setConsumeMsg] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError]         = useState<string | null>(null)
 
   const fetchData = async () => {
     try {
@@ -46,7 +47,7 @@ export default function Gamification() {
 
   const consumeReward = async (rewardId: number, rewardName: string) => {
     setConsuming(rewardId)
-    const res = await fetch(`${API}/rewards/${rewardId}/consume`, { method: "POST" })
+    const res  = await fetch(`${API}/rewards/${rewardId}/consume`, { method: "POST" })
     const json = await res.json()
     if (res.ok) {
       setConsumeMsg(`🎉 "${rewardName}" consommée !`)
@@ -66,10 +67,10 @@ export default function Gamification() {
     return <div className="p-8 text-red-400 text-sm">{error}</div>
   }
 
-  const levelColor = LEVEL_COLORS[data.level.name] ?? "#3b82f6"
-  const xpRange = data.level.max_xp - data.level.min_xp
-  const xpProgress = data.total_xp - data.level.min_xp
-  const xpPct = Math.min(100, Math.round((xpProgress / xpRange) * 100))
+  const levelColor  = LEVEL_COLORS[data.level.name] ?? "#3b82f6"
+  const xpRange     = data.level.max_xp - data.level.min_xp
+  const xpProgress  = data.total_xp - data.level.min_xp
+  const xpPct       = Math.min(100, Math.round((xpProgress / xpRange) * 100))
 
   return (
     <div className="p-8 space-y-6 max-w-4xl">
@@ -135,7 +136,7 @@ export default function Gamification() {
       {/* Score History */}
       {data.recent_scores.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">📈 Score des 7 derniers jours</h3>
+          <h3 className="text-sm font-semibold text-gray-300 mb-4">📈 Score des 30 derniers jours</h3>
           <ResponsiveContainer width="100%" height={160}>
             <LineChart data={data.recent_scores}>
               <XAxis
@@ -225,19 +226,16 @@ export default function Gamification() {
         )}
       </div>
 
-      {/* Seuils */}
+      {/* Seuils — source unique : score-utils.ts */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
         <h3 className="text-sm font-semibold text-gray-300 mb-4">🎖️ Seuils de récompense</h3>
         <div className="grid grid-cols-4 gap-3">
-          {[
-            { label: "Bronze",  color: "#cd7f32", req: "Score ≥ 60%" },
-            { label: "Argent",  color: "#a8a9ad", req: "Score ≥ 75%" },
-            { label: "Or",      color: "#ffd700", req: "Score ≥ 90%" },
-            { label: "Diamant", color: "#b9f2ff", req: "Score ≥ 98%" },
-          ].map((tier) => (
+          {SCORE_TIERS.filter((t) => t.label !== "Danger").map((tier) => (
             <div key={`tier-${tier.label}`} className="bg-gray-800 rounded-xl p-3 text-center">
-              <div className="text-lg font-bold mb-1" style={{ color: tier.color }}>{tier.label}</div>
-              <div className="text-xs text-gray-500">{tier.req}</div>
+              <div className="text-lg font-bold mb-1" style={{ color: tier.color }}>
+                {tier.emoji} {tier.label}
+              </div>
+              <div className="text-xs text-gray-500">Score ≥ {tier.min}%</div>
             </div>
           ))}
         </div>

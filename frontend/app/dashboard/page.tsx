@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useAppStore } from "@/lib/store"
 import { RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer, Tooltip } from "recharts"
 import Link from "next/link"
+import { getScoreColor, getScoreLabel } from "@/lib/score-utils"
 
 export default function Dashboard() {
   const { todaySummary, fetchTodaySummary } = useAppStore()
@@ -14,26 +15,17 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [fetchTodaySummary])
 
-  const score = todaySummary?.global_score ?? 0
-  const xp = todaySummary?.xp_today ?? 0
+  const score   = todaySummary?.global_score ?? 0
+  const xp      = todaySummary?.xp_today ?? 0
   const pillars = todaySummary?.pillars ?? []
 
   const radarData = pillars.map((p) => ({
     pillar: p.pillar_name,
-    score: p.score_pct,
+    score:  p.score_pct,
   }))
 
-  const scoreColor =
-    score >= 90 ? "#f59e0b" :
-    score >= 75 ? "#a78bfa" :
-    score >= 60 ? "#3b82f6" :
-    "#ef4444"
-
-  const scoreLabel =
-    score >= 90 ? "💎 Diamant" :
-    score >= 75 ? "🥇 Or" :
-    score >= 60 ? "🥈 Argent" :
-    score >= 40 ? "🥉 Bronze" : "❌ Danger"
+  const scoreColor = getScoreColor(score)
+  const scoreLabel = getScoreLabel(score)
 
   return (
     <div className="p-8 space-y-8">
@@ -47,7 +39,6 @@ export default function Dashboard() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-3 gap-4">
-        {/* Score Global */}
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">Score Global</p>
           <div className="flex items-end gap-2">
@@ -56,14 +47,12 @@ export default function Dashboard() {
           <p className="text-xs mt-2" style={{ color: scoreColor }}>{scoreLabel}</p>
         </div>
 
-        {/* XP */}
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">XP Aujourd&apos;hui</p>
           <span className="text-4xl font-bold text-purple-400">+{xp}</span>
           <p className="text-xs text-gray-600 mt-2">points d&apos;expérience</p>
         </div>
 
-        {/* Piliers actifs */}
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
           <p className="text-gray-500 text-xs uppercase tracking-wider mb-2">Piliers actifs</p>
           <span className="text-4xl font-bold text-blue-400">{pillars.length}</span>
@@ -73,7 +62,6 @@ export default function Dashboard() {
 
       {/* Radar + Pillar Scores */}
       <div className="grid grid-cols-2 gap-4">
-        {/* Radar Chart */}
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
           <h3 className="text-sm font-semibold text-gray-300 mb-4">⚖️ Équilibre des Piliers</h3>
           {radarData.length > 0 ? (
@@ -95,7 +83,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Pillar breakdown */}
         <div className="bg-gray-900 rounded-xl p-5 border border-gray-800">
           <h3 className="text-sm font-semibold text-gray-300 mb-4">📊 Scores par Pilier</h3>
           {pillars.length > 0 ? (
@@ -110,7 +97,7 @@ export default function Dashboard() {
                     <div
                       className="h-2 rounded-full transition-all duration-500"
                       style={{
-                        width: `${p.score_pct}%`,
+                        width:           `${p.score_pct}%`,
                         backgroundColor: p.pillar_color ?? "#3b82f6",
                       }}
                     />

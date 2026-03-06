@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import VoiceButton from "@/components/voice-button"
+import ErrorBoundary from "@/components/error-boundary"
 
 const navItems = [
   { href: "/dashboard",              icon: "⚡", label: "Dashboard"    },
@@ -91,7 +92,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-sm font-semibold text-white">⚡ LifeForge</span>
         </div>
         <div className="page-enter">
-          {children}
+          <ErrorBoundary name="Page">
+            {children}
+          </ErrorBoundary>
         </div>
         <VoiceButton />
       </main>

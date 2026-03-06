@@ -71,7 +71,6 @@ function EmojiPicker({
   const [search, setSearch] = useState("")
   const ref = useRef<HTMLDivElement>(null)
 
-  // Close on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -83,15 +82,11 @@ function EmojiPicker({
   }, [])
 
   const allEmojis = EMOJI_CATEGORIES.flatMap((c) => c.emojis)
-  const filtered = search
-    ? allEmojis.filter((e) => e.includes(search))
-    : null
+  const filtered = search ? allEmojis.filter((e) => e.includes(search)) : null
 
   return (
     <div ref={ref} className="relative">
       <label className="text-xs text-gray-500 mb-1 block">Icône</label>
-
-      {/* Trigger button */}
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
@@ -102,11 +97,8 @@ function EmojiPicker({
         <span className="text-gray-600 text-xs">{open ? "▲" : "▼"}</span>
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div className="absolute z-50 top-full left-0 mt-1 w-72 bg-gray-900 border border-gray-700 rounded-xl shadow-2xl overflow-hidden">
-
-          {/* Search */}
           <div className="p-2 border-b border-gray-800">
             <input
               type="text"
@@ -117,8 +109,6 @@ function EmojiPicker({
               autoFocus
             />
           </div>
-
-          {/* Emoji grid */}
           <div className="overflow-y-auto max-h-64 p-2 space-y-3">
             {filtered ? (
               <div>
@@ -159,8 +149,6 @@ function EmojiPicker({
               ))
             )}
           </div>
-
-          {/* Current selection */}
           <div className="px-3 py-2 border-t border-gray-800 flex items-center gap-2">
             <span className="text-xl">{value}</span>
             <span className="text-xs text-gray-500">Sélectionné</span>
@@ -173,12 +161,13 @@ function EmojiPicker({
 
 // ── Main Settings Page ─────────────────────────────────────────────────────
 export default function Settings() {
-  const [tab, setTab] = useState<Tab>("pillars")
-  const [pillars, setPillars] = useState<Pillar[]>([])
-  const [rewards, setRewards] = useState<Reward[]>([])
+  const [tab, setTab]           = useState<Tab>("pillars")
+  const [pillars, setPillars]   = useState<Pillar[]>([])
+  const [rewards, setRewards]   = useState<Reward[]>([])
   const [sanctions, setSanctions] = useState<Sanction[]>([])
-  const [loading, setLoading] = useState(true)
-  const [saved, setSaved] = useState(false)
+  const [loading, setLoading]   = useState(true)
+  const [saved, setSaved]       = useState(false)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const [pillarForm, setPillarForm] = useState({
     name: "", icon: "⭐", color: "#3b82f6", weight_pct: 20,
@@ -211,16 +200,37 @@ export default function Settings() {
 
   const showSaved = () => {
     setSaved(true)
+    setApiError(null)
     setTimeout(() => setSaved(false), 2000)
   }
 
+  // ── Piliers ──────────────────────────────────────────────────────────────
+
+  const totalWeight = pillars.filter((p) => p.is_active).reduce((s, p) => s + p.weight_pct, 0)
+  const remainingBudget = Math.max(0, 100 - totalWeight)
+
   const createPillar = async () => {
     if (!pillarForm.name.trim()) return
-    await fetch(`${API}/pillars/`, {
+    setApiError(null)
+
+    // Vérification locale avant d'envoyer
+    if (pillarForm.weight_pct > remainingBudget + 0.01) {
+      setApiError(`❌ Budget insuffisant — il reste ${remainingBudget.toFixed(1)}% disponible.`)
+      return
+    }
+
+    const res = await fetch(`${API}/pillars/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(pillarForm),
     })
+
+    if (!res.ok) {
+      const err = await res.json()
+      setApiError(`❌ ${err.detail}`)
+      return
+    }
+
     setPillarForm({ name: "", icon: "⭐", color: "#3b82f6", weight_pct: 20 })
     await fetchAll()
     showSaved()
@@ -231,13 +241,20 @@ export default function Settings() {
     await fetchAll()
   }
 
+  // ── Rewards ──────────────────────────────────────────────────────────────
+
   const createReward = async () => {
     if (!rewardForm.name.trim()) return
-    await fetch(`${API}/rewards/`, {
+    const res = await fetch(`${API}/rewards/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(rewardForm),
     })
+    if (!res.ok) {
+      const err = await res.json()
+      setApiError(`❌ ${err.detail}`)
+      return
+    }
     setRewardForm({ name: "", level_required: "bronze", reward_type: "consumable", cooldown_days: 0 })
     await fetchAll()
     showSaved()
@@ -248,13 +265,20 @@ export default function Settings() {
     await fetchAll()
   }
 
+  // ── Sanctions ─────────────────────────────────────────────────────────────
+
   const createSanction = async () => {
     if (!sanctionForm.name.trim()) return
-    await fetch(`${API}/rewards/sanctions/`, {
+    const res = await fetch(`${API}/rewards/sanctions/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sanctionForm),
     })
+    if (!res.ok) {
+      const err = await res.json()
+      setApiError(`❌ ${err.detail}`)
+      return
+    }
     setSanctionForm({ name: "", description: "", trigger_threshold: 40, consecutive_days: 1 })
     await fetchAll()
     showSaved()
@@ -264,8 +288,6 @@ export default function Settings() {
     await fetch(`${API}/rewards/sanctions/${id}`, { method: "DELETE" })
     await fetchAll()
   }
-
-  const totalWeight = pillars.filter(p => p.is_active).reduce((s, p) => s + p.weight_pct, 0)
 
   if (loading) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
@@ -287,12 +309,19 @@ export default function Settings() {
         )}
       </div>
 
+      {/* API Error */}
+      {apiError && (
+        <div className="px-4 py-3 rounded-xl text-sm border bg-red-900/20 border-red-800/40 text-red-400">
+          {apiError}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-gray-800 pb-0">
         {(["pillars", "rewards", "sanctions"] as Tab[]).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); setApiError(null) }}
             className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
               tab === t
                 ? "border-blue-500 text-white"
@@ -307,55 +336,77 @@ export default function Settings() {
       {/* ── PILIERS ── */}
       {tab === "pillars" && (
         <div className="space-y-4">
-          {totalWeight !== 100 && (
-            <div className={`px-4 py-3 rounded-xl text-sm border ${
-              totalWeight > 100
-                ? "bg-red-900/20 border-red-800/40 text-red-400"
-                : "bg-yellow-900/20 border-yellow-800/40 text-yellow-400"
-            }`}>
-              ⚠️ Total des poids : <strong>{totalWeight}%</strong> — doit faire 100%
-            </div>
-          )}
-          {totalWeight === 100 && (
-            <div className="px-4 py-3 rounded-xl text-sm border bg-green-900/20 border-green-800/40 text-green-400">
-              ✅ Total des poids : 100%
-            </div>
-          )}
 
-          {/* Existing pillars */}
+          {/* Barre de budget des poids */}
+          <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-xs text-gray-400">Budget des poids</span>
+              <span className={`text-xs font-semibold ${
+                totalWeight === 100 ? "text-green-400" :
+                totalWeight > 100   ? "text-red-400"   : "text-yellow-400"
+              }`}>
+                {totalWeight.toFixed(1)} / 100%
+              </span>
+            </div>
+            <div className="w-full bg-gray-800 rounded-full h-2">
+              <div
+                className={`h-2 rounded-full transition-all duration-300 ${
+                  totalWeight > 100   ? "bg-red-500"   :
+                  totalWeight === 100 ? "bg-green-500" : "bg-yellow-500"
+                }`}
+                style={{ width: `${Math.min(totalWeight, 100)}%` }}
+              />
+            </div>
+            <p className={`text-xs ${
+              totalWeight === 100 ? "text-green-400" :
+              totalWeight > 100   ? "text-red-400"   : "text-yellow-400"
+            }`}>
+              {totalWeight === 100
+                ? "✅ Poids équilibrés — scoring optimal"
+                : totalWeight > 100
+                ? `❌ Dépassement de ${(totalWeight - 100).toFixed(1)}% — retire ou réduis un pilier`
+                : `⚠️ Il reste ${remainingBudget.toFixed(1)}% à allouer`}
+            </p>
+          </div>
+
+          {/* Piliers actifs */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 overflow-hidden">
             <div className="px-5 py-3 border-b border-gray-800">
               <h3 className="text-sm font-semibold text-gray-300">Piliers actifs</h3>
             </div>
-            <div className="divide-y divide-gray-800">
-              {pillars.filter(p => p.is_active).map((pillar) => (
-                <div key={pillar.id} className="flex items-center gap-3 px-5 py-3.5">
-                  <div
-                    className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
-                    style={{ backgroundColor: `${pillar.color}20` }}
-                  >
-                    {pillar.icon}
-                  </div>
-                  <div className="flex-1">
-                    <span className="text-sm text-white">{pillar.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm font-semibold" style={{ color: pillar.color }}>
-                      {pillar.weight_pct}%
-                    </span>
-                    <button
-                      onClick={() => archivePillar(pillar.id)}
-                      className="text-gray-700 hover:text-red-500 transition-colors text-xs"
+            {pillars.filter((p) => p.is_active).length === 0 ? (
+              <p className="px-5 py-4 text-sm text-gray-600">Aucun pilier — crée-en un ci-dessous.</p>
+            ) : (
+              <div className="divide-y divide-gray-800">
+                {pillars.filter((p) => p.is_active).map((pillar) => (
+                  <div key={pillar.id} className="flex items-center gap-3 px-5 py-3.5">
+                    <div
+                      className="w-8 h-8 rounded-lg flex items-center justify-center text-base shrink-0"
+                      style={{ backgroundColor: `${pillar.color}20` }}
                     >
-                      Archiver
-                    </button>
+                      {pillar.icon}
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm text-white">{pillar.name}</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold" style={{ color: pillar.color }}>
+                        {pillar.weight_pct}%
+                      </span>
+                      <button
+                        onClick={() => archivePillar(pillar.id)}
+                        className="text-gray-700 hover:text-red-500 transition-colors text-xs"
+                      >
+                        Archiver
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Add pillar form */}
+          {/* Formulaire nouveau pilier */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-4">
             <h3 className="text-sm font-semibold text-gray-300">Nouveau pilier</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -370,7 +421,6 @@ export default function Settings() {
                 />
               </div>
 
-              {/* ✅ Emoji Picker remplace le champ texte */}
               <EmojiPicker
                 value={pillarForm.icon}
                 onChange={(emoji) => setPillarForm({ ...pillarForm, icon: emoji })}
@@ -390,22 +440,31 @@ export default function Settings() {
               </div>
 
               <div>
-                <label className="text-xs text-gray-500 mb-1 block">Poids (%)</label>
+                <label className="text-xs text-gray-500 mb-1 block">
+                  Poids (%) —{" "}
+                  <span className={remainingBudget === 0 ? "text-red-400" : "text-gray-500"}>
+                    max {remainingBudget.toFixed(1)}% disponible
+                  </span>
+                </label>
                 <input
                   type="number"
                   min={1}
-                  max={100}
+                  max={remainingBudget}
                   value={pillarForm.weight_pct}
                   onChange={(e) => setPillarForm({ ...pillarForm, weight_pct: Number(e.target.value) })}
                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>
             </div>
+
             <button
               onClick={createPillar}
-              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-white text-sm font-medium transition-colors"
+              disabled={totalWeight >= 100}
+              className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-white text-sm font-medium transition-colors"
             >
-              + Ajouter le pilier
+              {totalWeight >= 100
+                ? "⚠️ Budget poids épuisé (100%)"
+                : `+ Ajouter le pilier (${remainingBudget.toFixed(1)}% disponible)`}
             </button>
           </div>
         </div>
@@ -486,7 +545,7 @@ export default function Settings() {
                 </select>
               </div>
               <div className="col-span-2">
-                <label className="text-xs text-gray-500 mb-1 block">Cooldown (jours)</label>
+                <label className="text-xs text-gray-500 mb-1 block">Cooldown (jours, 0 = illimité)</label>
                 <input
                   type="number"
                   min={0}
@@ -608,9 +667,9 @@ export default function Settings() {
               </a>
               <button
                 onClick={async () => {
-                  const res = await fetch(`${API}/backup/stats`)
+                  const res  = await fetch(`${API}/backup/stats`)
                   const data = await res.json()
-                  alert(`📊 Stats DB:\n${Object.entries(data).map(([k,v]) => `${k}: ${v}`).join('\n')}`)
+                  alert(`📊 Stats DB:\n${Object.entries(data.data ?? data).map(([k, v]) => `${k}: ${v}`).join("\n")}`)
                 }}
                 className="px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-gray-300 text-sm transition-colors"
               >

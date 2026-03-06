@@ -17,43 +17,52 @@ import {
   getTemplates,
   createTemplate,
 } from "@/lib/api"
+import { getScoreColor, getScoreLabel } from "@/lib/score-utils"
 
-// ── Types ──────────────────────────────────────────────
+// ── Types ──────────────────────────────────────────────────────────────────
 
 interface Habit {
-  id: number
-  name: string
-  type: "good" | "bad"
-  points: number
-  frequency: string
-  pillar_id: number
-  checked: boolean
+  id:             number
+  name:           string
+  type:           "good" | "bad"
+  points:         number
+  frequency:      string
+  pillar_id:      number
+  checked:        boolean
+  current_streak: number
+  best_streak:    number
 }
 
 interface Pillar {
-  id: number
-  name: string
-  icon: string
+  id:    number
+  name:  string
+  icon:  string
   color: string
 }
 
 interface NewHabitForm {
-  name: string
-  type: "good" | "bad"
-  points: number
+  name:      string
+  type:      "good" | "bad"
+  points:    number
   frequency: string
   pillar_id: number
 }
 
 interface Template {
-  id: number
+  id:          number
   day_of_week: number
-  name: string
+  name:        string
+}
+
+interface XPToast {
+  id:     number
+  points: number
+  streak: number
 }
 
 const DAY_LABELS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"]
 
-// ── Page ───────────────────────────────────────────────
+// ── Page ───────────────────────────────────────────────────────────────────
 
 export default function Planning() {
   const [tab, setTab] = useState<"today" | "templates">("today")
@@ -84,26 +93,25 @@ export default function Planning() {
   )
 }
 
-// ── Vue du jour ────────────────────────────────────────
+// ── Vue du jour ────────────────────────────────────────────────────────────
 
 function TodayView() {
-  const [habits, setHabits] = useState<Habit[]>([])
-  const [pillars, setPillars] = useState<Pillar[]>([])
-  const [score, setScore] = useState(0)
-  const [loading, setLoading] = useState(true)
-  const [showForm, setShowForm] = useState(false)
+  const [habits,    setHabits]    = useState<Habit[]>([])
+  const [pillars,   setPillars]   = useState<Pillar[]>([])
+  const [score,     setScore]     = useState(0)
+  const [loading,   setLoading]   = useState(true)
+  const [showForm,  setShowForm]  = useState(false)
+  const [toasts,    setToasts]    = useState<XPToast[]>([])
   const [form, setForm] = useState<NewHabitForm>({
-    name: "",
-    type: "good",
-    points: 20,
-    frequency: "daily",
-    pillar_id: 1,
+    name: "", type: "good", points: 20, frequency: "daily", pillar_id: 1,
   })
+
+  // ── Fetch ────────────────────────────────────────────────────────────────
 
   const fetchAll = async () => {
     const [habitsData, pillarsData] = await Promise.all([
       getHabitsToday() as Promise<Habit[]>,
-      getPillars() as Promise<Pillar[]>,
+      getPillars()     as Promise<Pillar[]>,
     ])
     setHabits(habitsData)
     setPillars(pillarsData)
@@ -122,16 +130,44 @@ function TodayView() {
     refreshScore()
   }, [])
 
+  // ── Toast XP ─────────────────────────────────────────────────────────────
+
+  const showXPToast = (points: number, streak: number) => {
+    const id = Date.now()
+    setToasts((prev) => [...prev, { id, points, streak }])
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 3000)
+  }
+
+  // ── Actions ──────────────────────────────────────────────────────────────
+
   const toggleHabit = async (habit: Habit) => {
     // Optimistic update
     setHabits((prev) =>
       prev.map((h) => (h.id === habit.id ? { ...h, checked: !h.checked } : h))
     )
+
     if (habit.checked) {
       await uncheckHabit(habit.id)
     } else {
-      await checkHabit(habit.id)
+      const res = await checkHabit(habit.id) as {
+        points_earned?: number
+        streak?: { current_streak: number; best_streak: number }
+      }
+      if (res?.points_earned && res.points_earned > 0) {
+        showXPToast(res.points_earned, res.streak?.current_streak ?? 0)
+      }
+      // Mettre à jour le streak dans le state local
+      if (res?.streak) {
+        setHabits((prev) =>
+          prev.map((h) =>
+            h.id === habit.id
+              ? { ...h, current_streak: res.streak!.current_streak, best_streak: res.streak!.best_streak }
+              : h
+          )
+        )
+      }
     }
+
     await refreshScore()
   }
 
@@ -149,14 +185,11 @@ function TodayView() {
     await fetchAll()
   }
 
-  const goodHabits = habits.filter((h) => h.type === "good")
-  const badHabits = habits.filter((h) => h.type === "bad")
-  const checkedCount = habits.filter((h) => h.checked).length
+  // ── Computed ─────────────────────────────────────────────────────────────
 
-  const scoreColor =
-    score >= 90 ? "#f59e0b" :
-    score >= 75 ? "#a78bfa" :
-    score >= 60 ? "#3b82f6" : "#ef4444"
+  const goodHabits  = habits.filter((h) => h.type === "good")
+  const badHabits   = habits.filter((h) => h.type === "bad")
+  const checkedCount = habits.filter((h) => h.checked).length
 
   if (loading) {
     return <div className="text-gray-500 text-sm animate-pulse">Chargement...</div>
@@ -164,6 +197,21 @@ function TodayView() {
 
   return (
     <div className="space-y-6">
+
+      {/* XP Toasts */}
+      <div className="fixed top-6 right-6 z-50 flex flex-col gap-2 pointer-events-none">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className="bg-gray-900 border border-purple-500/50 rounded-xl px-4 py-3 shadow-lg animate-bounce"
+          >
+            <p className="text-purple-400 font-bold text-sm">+{t.points} XP ⚡</p>
+            {t.streak > 1 && (
+              <p className="text-orange-400 text-xs mt-0.5">🔥 {t.streak} jours de suite !</p>
+            )}
+          </div>
+        ))}
+      </div>
 
       {/* Header + score */}
       <div className="flex items-center justify-between">
@@ -174,8 +222,9 @@ function TodayView() {
           </p>
         </div>
         <div className="text-right">
-          <p className="text-3xl font-bold" style={{ color: scoreColor }}>{score}%</p>
-          <p className="text-xs text-gray-500">{checkedCount}/{habits.length} habitudes</p>
+          <p className="text-3xl font-bold" style={{ color: getScoreColor(score) }}>{score}%</p>
+          <p className="text-xs" style={{ color: getScoreColor(score) }}>{getScoreLabel(score)}</p>
+          <p className="text-xs text-gray-500 mt-0.5">{checkedCount}/{habits.length} habitudes</p>
         </div>
       </div>
 
@@ -196,37 +245,13 @@ function TodayView() {
             {goodHabits.map((habit) => {
               const pillar = pillars.find((p) => p.id === habit.pillar_id)
               return (
-                <div
+                <HabitRow
                   key={habit.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => toggleHabit(habit)}
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                        habit.checked
-                          ? "bg-green-500 border-green-500"
-                          : "border-gray-600 hover:border-green-500"
-                      }`}
-                    >
-                      {habit.checked && <span className="text-white text-xs">✓</span>}
-                    </button>
-                    <div>
-                      <p className={`text-sm font-medium ${habit.checked ? "line-through text-gray-500" : "text-white"}`}>
-                        {habit.name}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {pillar?.icon} {pillar?.name} · +{habit.points} pts
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteHabit(habit.id)}
-                    className="text-gray-700 hover:text-red-400 text-xs transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
+                  habit={habit}
+                  pillar={pillar}
+                  onToggle={() => toggleHabit(habit)}
+                  onDelete={() => handleDeleteHabit(habit.id)}
+                />
               )
             })}
           </div>
@@ -241,37 +266,13 @@ function TodayView() {
             {badHabits.map((habit) => {
               const pillar = pillars.find((p) => p.id === habit.pillar_id)
               return (
-                <div
+                <HabitRow
                   key={habit.id}
-                  className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={() => toggleHabit(habit)}
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-                        habit.checked
-                          ? "bg-red-500 border-red-500"
-                          : "border-gray-600 hover:border-red-500"
-                      }`}
-                    >
-                      {habit.checked && <span className="text-white text-xs">✗</span>}
-                    </button>
-                    <div>
-                      <p className={`text-sm font-medium ${habit.checked ? "line-through text-gray-500" : "text-white"}`}>
-                        {habit.name}
-                      </p>
-                      <p className="text-xs text-gray-600">
-                        {pillar?.icon} {pillar?.name} · -{habit.points} pts
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleDeleteHabit(habit.id)}
-                    className="text-gray-700 hover:text-red-400 text-xs transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
+                  habit={habit}
+                  pillar={pillar}
+                  onToggle={() => toggleHabit(habit)}
+                  onDelete={() => handleDeleteHabit(habit.id)}
+                />
               )
             })}
           </div>
@@ -326,8 +327,7 @@ function TodayView() {
                 type="number"
                 value={form.points}
                 onChange={(e) => setForm({ ...form, points: Number(e.target.value) })}
-                min={1}
-                max={100}
+                min={1} max={100}
                 className="bg-gray-800 rounded-lg px-3 py-2 text-sm text-white border border-gray-700"
                 placeholder="Points"
               />
@@ -353,11 +353,84 @@ function TodayView() {
   )
 }
 
-// ── Templates hebdo ────────────────────────────────────
+// ── HabitRow ───────────────────────────────────────────────────────────────
+
+interface HabitRowProps {
+  habit:    Habit
+  pillar:   Pillar | undefined
+  onToggle: () => void
+  onDelete: () => void
+}
+
+function HabitRow({ habit, pillar, onToggle, onDelete }: HabitRowProps) {
+  const isGood = habit.type === "good"
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 hover:bg-gray-800 transition-colors">
+      <div className="flex items-center gap-3 flex-1 min-w-0">
+
+        {/* Checkbox */}
+        <button
+          onClick={onToggle}
+          className={`shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+            habit.checked
+              ? isGood
+                ? "bg-green-500 border-green-500"
+                : "bg-red-500 border-red-500"
+              : isGood
+              ? "border-gray-600 hover:border-green-500"
+              : "border-gray-600 hover:border-red-500"
+          }`}
+        >
+          {habit.checked && (
+            <span className="text-white text-xs">{isGood ? "✓" : "✗"}</span>
+          )}
+        </button>
+
+        {/* Infos */}
+        <div className="min-w-0">
+          <p className={`text-sm font-medium truncate ${habit.checked ? "line-through text-gray-500" : "text-white"}`}>
+            {habit.name}
+          </p>
+          <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            <span className="text-xs text-gray-600">
+              {pillar?.icon} {pillar?.name} · {isGood ? "+" : "-"}{habit.points} pts
+            </span>
+
+            {/* Streak badge */}
+            {habit.current_streak > 0 && (
+              <span className="inline-flex items-center gap-1 text-xs bg-orange-500/10 text-orange-400 px-1.5 py-0.5 rounded-full">
+                🔥 {habit.current_streak}j
+                {habit.best_streak > habit.current_streak && (
+                  <span className="text-gray-500">/ record {habit.best_streak}j</span>
+                )}
+              </span>
+            )}
+
+            {/* Record égalé */}
+            {habit.current_streak > 0 && habit.current_streak === habit.best_streak && (
+              <span className="text-xs text-yellow-400">🏆 record</span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Supprimer */}
+      <button
+        onClick={onDelete}
+        className="shrink-0 text-gray-700 hover:text-red-400 text-xs transition-colors ml-2"
+      >
+        ✕
+      </button>
+    </div>
+  )
+}
+
+// ── Templates hebdo ────────────────────────────────────────────────────────
 
 function TemplatesView() {
   const [templates, setTemplates] = useState<Template[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading,   setLoading]   = useState(true)
   const [form, setForm] = useState({ day_of_week: 0, name: "" })
 
   const fetchTemplates = async () => {
