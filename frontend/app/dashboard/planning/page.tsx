@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react"
 import Pomodoro from "@/components/pomodoro"
 import { checkHabit } from "@/lib/api"
+import NotificationManager from "@/components/notifications"
+
 
 const API = "http://localhost:8000"
 
@@ -132,9 +134,10 @@ export default function Planning() {
         </div>
       </div>
       <Pomodoro
-  habits={habits}
-  onHabitCheck={checkHabit}
-/>
+         habits={habits}
+        onHabitCheck={checkHabit}
+        />
+        <NotificationManager />
 
       {/* Progress bar */}
       <div className="w-full bg-gray-800 rounded-full h-2">
