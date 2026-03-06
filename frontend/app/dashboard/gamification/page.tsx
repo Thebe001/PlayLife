@@ -1,165 +1,185 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts"
-import { API } from "@/lib/api"
-import Link from "next/link"
-import { SCORE_TIERS } from "@/lib/score-utils"
+import { useEffect, useState, useCallback } from "react"
+import { useAppStore } from "@/lib/store"
+import { checkBadges, getRewards, consumeReward, getActiveSanctions } from "@/lib/api"
+import { getScoreTier } from "@/lib/score-utils"
+import {
+  LineChart, Line, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, CartesianGrid,
+} from "recharts"
 
-interface GamificationData {
-  total_xp: number
-  level: { name: string; min_xp: number; max_xp: number }
-  streak: number
-  badges: { id: number; name: string; icon: string; description: string; unlocked_at: string }[]
-  rewards: { id: number; name: string; level_required: string; reward_type: string; cooldown_days: number }[]
-  recent_scores: { date: string; score: number }[]
+// ── Types ──────────────────────────────────────────────────────────────────
+
+interface Badge {
+  id: number
+  name: string
+  icon: string
+  description: string
+  unlocked_at: string
 }
 
-const LEVEL_COLORS: Record<string, string> = {
-  Bronze:   "#cd7f32",
-  Argent:   "#a8a9ad",
-  Or:       "#ffd700",
-  Diamant:  "#b9f2ff",
-  "Maître": "#ff6b9d",
+interface RewardItem {
+  id: number
+  name: string
+  level_required: string
+  reward_type: string
+  cooldown_days: number
 }
+
+interface ActiveSanction {
+  id: number
+  name: string
+  description: string
+  trigger_threshold: number
+  consecutive_days: number
+}
+
+// ── Component ─────────────────────────────────────────────────────────────
 
 export default function Gamification() {
-  const [data, setData]           = useState<GamificationData | null>(null)
-  const [loading, setLoading]     = useState(true)
-  const [consuming, setConsuming] = useState<number | null>(null)
+  const { gamification, fetchGamification } = useAppStore()
+  const [rewards, setRewards] = useState<RewardItem[]>([])
+  const [sanctions, setSanctions] = useState<ActiveSanction[]>([])
+  const [checkingBadges, setCheckingBadges] = useState(false)
+  const [newBadges, setNewBadges] = useState<string[]>([])
   const [consumeMsg, setConsumeMsg] = useState<string | null>(null)
-  const [error, setError]         = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const fetchData = async () => {
+  const loadAll = useCallback(async () => {
     try {
-      await fetch(`${API}/gamification/badges/check`, { method: "POST" })
-      const res = await fetch(`${API}/gamification/summary`)
-      if (!res.ok) throw new Error(`${res.status}`)
-      const json = await res.json()
-      setData(json)
+      await fetchGamification()
+      const [rw, sn] = await Promise.all([
+        getRewards().catch(() => []),
+        getActiveSanctions().catch(() => []),
+      ])
+      setRewards(rw as RewardItem[])
+      setSanctions(sn as ActiveSanction[])
     } catch {
-      setError("Impossible de charger les données de gamification.")
+      // ignore
     }
     setLoading(false)
+  }, [fetchGamification])
+
+  useEffect(() => { loadAll() }, [loadAll])
+
+  const handleCheckBadges = async () => {
+    setCheckingBadges(true)
+    try {
+      const result = await checkBadges() as { unlocked: string[]; count: number }
+      setNewBadges(result.unlocked)
+      if (result.count > 0) await fetchGamification()
+    } catch { /* ignore */ }
+    setCheckingBadges(false)
   }
 
-  useEffect(() => { fetchData() }, [])
-
-  const consumeReward = async (rewardId: number, rewardName: string) => {
-    setConsuming(rewardId)
-    const res  = await fetch(`${API}/rewards/${rewardId}/consume`, { method: "POST" })
-    const json = await res.json()
-    if (res.ok) {
-      setConsumeMsg(`🎉 "${rewardName}" consommée !`)
-    } else {
-      setConsumeMsg(`⏳ ${json.detail}`)
+  const handleConsumeReward = async (id: number, name: string) => {
+    try {
+      await consumeReward(id)
+      setConsumeMsg(`🎉 "${name}" consommée !`)
+      setTimeout(() => setConsumeMsg(null), 3000)
+    } catch {
+      setConsumeMsg(`⏳ Récompense en cooldown`)
+      setTimeout(() => setConsumeMsg(null), 3000)
     }
-    setTimeout(() => setConsumeMsg(null), 3000)
-    setConsuming(null)
-    await fetchData()
   }
 
-  if (loading || !data) {
+  if (loading || !gamification) {
     return <div className="p-8 text-gray-500 text-sm animate-pulse">Chargement...</div>
   }
 
-  if (error) {
-    return <div className="p-8 text-red-400 text-sm">{error}</div>
+  const { total_xp, level, streak, badges, recent_scores } = gamification as {
+    total_xp: number
+    level: { name: string; min_xp: number; max_xp: number }
+    streak: number
+    badges: Badge[]
+    recent_scores?: { date: string; score: number }[]
   }
 
-  const levelColor  = LEVEL_COLORS[data.level.name] ?? "#3b82f6"
-  const xpRange     = data.level.max_xp - data.level.min_xp
-  const xpProgress  = data.total_xp - data.level.min_xp
-  const xpPct       = Math.min(100, Math.round((xpProgress / xpRange) * 100))
+  const xpInLevel = total_xp - level.min_xp
+  const xpRange = level.max_xp - level.min_xp
+  const levelProgress = xpRange > 0 ? Math.min(100, (xpInLevel / xpRange) * 100) : 100
+
+  const tierInfo = getScoreTier(recent_scores?.[0]?.score ?? 0)
+
+  // Score sparkline for chart
+  const chartData = [...(recent_scores ?? [])].reverse()
 
   return (
-    <div className="p-8 space-y-6 max-w-4xl">
+    <div className="p-8 space-y-6 max-w-5xl">
 
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-white">🏆 Gamification</h2>
-        <p className="text-gray-500 text-sm mt-1">Ta progression long terme</p>
+        <p className="text-gray-500 text-sm mt-1">XP, niveau, badges, récompenses & sanctions</p>
       </div>
 
       {/* Toast */}
       {consumeMsg && (
-        <div className="bg-green-900/30 border border-green-700/40 rounded-xl px-4 py-3 text-sm text-green-400">
+        <div className="fixed top-4 right-4 z-50 bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 text-sm text-white shadow-lg">
           {consumeMsg}
         </div>
       )}
 
-      {/* XP + Streak */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="col-span-2 bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Niveau actuel</p>
-              <h3 className="text-2xl font-bold" style={{ color: levelColor }}>
-                {data.level.name}
-              </h3>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-500 mb-1">XP Total</p>
-              <p className="text-2xl font-bold text-white">{data.total_xp.toLocaleString()}</p>
-            </div>
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs text-gray-600">
-              <span>{data.level.min_xp} XP</span>
-              <span>{xpPct}%</span>
-              <span>{data.level.max_xp} XP</span>
-            </div>
-            <div className="w-full bg-gray-800 rounded-full h-3">
-              <div
-                className="h-3 rounded-full transition-all duration-700"
-                style={{ width: `${xpPct}%`, backgroundColor: levelColor }}
-              />
-            </div>
-            <p className="text-xs text-gray-600">
-              {Math.max(0, data.level.max_xp - data.total_xp)} XP pour le niveau suivant
-            </p>
-          </div>
+      {/* KPI Row */}
+      <div className="grid grid-cols-4 gap-4">
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">XP Total</p>
+          <p className="text-2xl font-bold text-blue-400">{total_xp.toLocaleString()}</p>
         </div>
-
-        <div className="bg-gray-900 rounded-xl border border-gray-800 p-5 flex flex-col items-center justify-center text-center">
-          <div className="text-4xl mb-2">{data.streak > 0 ? "🔥" : "💤"}</div>
-          <div className="text-3xl font-bold text-white">{data.streak}</div>
-          <p className="text-xs text-gray-500 mt-1">jours de streak</p>
-          {data.streak >= 7 && (
-            <span className="mt-2 text-xs px-2 py-1 bg-orange-900/30 text-orange-400 rounded-full">
-              Streak Warrior 🔥
-            </span>
-          )}
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Niveau</p>
+          <p className="text-2xl font-bold text-purple-400">{level.name}</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Streak</p>
+          <p className="text-2xl font-bold text-amber-400">🔥 {streak}j</p>
+        </div>
+        <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
+          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Rang actuel</p>
+          <p className="text-2xl font-bold" style={{ color: tierInfo.color }}>
+            {tierInfo.emoji} {tierInfo.label}
+          </p>
         </div>
       </div>
 
-      {/* Score History */}
-      {data.recent_scores.length > 0 && (
+      {/* XP Progress Bar */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold text-gray-300">⬆️ Progression vers le niveau suivant</h3>
+          <span className="text-xs text-gray-500">{xpInLevel} / {xpRange} XP</span>
+        </div>
+        <div className="w-full bg-gray-800 rounded-full h-4 overflow-hidden">
+          <div
+            className="h-4 rounded-full transition-all duration-700 bg-gradient-to-r from-blue-600 to-purple-500"
+            style={{ width: `${levelProgress}%` }}
+          />
+        </div>
+        <div className="flex justify-between mt-2 text-xs text-gray-600">
+          <span>{level.min_xp} XP</span>
+          <span>{level.max_xp} XP</span>
+        </div>
+      </div>
+
+      {/* Score Trend (mini chart) */}
+      {chartData.length > 0 && (
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-          <h3 className="text-sm font-semibold text-gray-300 mb-4">📈 Score des 30 derniers jours</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <LineChart data={data.recent_scores}>
+          <h3 className="text-sm font-semibold text-gray-300 mb-4">📈 Score global — 30 derniers jours</h3>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
               <XAxis
                 dataKey="date"
-                tick={{ fill: "#6b7280", fontSize: 11 }}
-                tickFormatter={(d) =>
-                  new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })
-                }
+                tick={{ fill: "#6b7280", fontSize: 10 }}
+                tickFormatter={(d) => new Date(d).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
               />
-              <YAxis domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 11 }} />
+              <YAxis domain={[0, 100]} tick={{ fill: "#6b7280", fontSize: 10 }} />
               <Tooltip
                 contentStyle={{ backgroundColor: "#111827", border: "1px solid #374151", borderRadius: 8 }}
-                labelFormatter={(d) => new Date(d).toLocaleDateString("fr-FR")}
-                formatter={(v: unknown) => [`${typeof v === "number" ? v : 0}%`, "Score"]}
+                labelFormatter={(d) => new Date(d as string).toLocaleDateString("fr-FR")}
+                formatter={(value: unknown) => [`${typeof value === "number" ? value : 0}%`, "Score"]}
               />
-              <Line
-                type="monotone"
-                dataKey="score"
-                stroke="#3b82f6"
-                strokeWidth={2}
-                dot={{ fill: "#3b82f6", r: 4 }}
-                activeDot={{ r: 6 }}
-              />
+              <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -167,58 +187,75 @@ export default function Gamification() {
 
       {/* Badges */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">🏅 Badges débloqués</h3>
-        {data.badges.length === 0 ? (
-          <p className="text-sm text-gray-600">Aucun badge encore — continue à progresser !</p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-300">🎖️ Badges débloqués ({badges.length})</h3>
+            {newBadges.length > 0 && (
+              <p className="text-xs text-green-400 mt-1">
+                ✨ Nouveau{newBadges.length > 1 ? "x" : ""} : {newBadges.join(", ")}
+              </p>
+            )}
+          </div>
+          <button
+            onClick={handleCheckBadges}
+            disabled={checkingBadges}
+            className="px-3 py-1.5 rounded-lg text-xs bg-purple-600 hover:bg-purple-700 text-white transition-colors disabled:opacity-50"
+          >
+            {checkingBadges ? "Vérification..." : "Vérifier les badges"}
+          </button>
+        </div>
+
+        {badges.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-gray-600 text-sm">Aucun badge débloqué pour l&apos;instant</p>
+            <p className="text-gray-700 text-xs mt-1">Continue ta routine pour les débloquer !</p>
+          </div>
         ) : (
-          <div className="grid grid-cols-3 gap-3">
-            {data.badges.map((badge, index) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            {badges.map((badge) => (
               <div
-                key={`badge-${badge.id}-${index}`}
-                className="bg-gray-800 rounded-xl p-4 flex flex-col items-center text-center gap-2"
+                key={badge.id}
+                className="bg-gray-800/50 rounded-xl border border-gray-700/50 p-4 text-center hover:border-purple-600/40 transition-colors group"
               >
-                <span className="text-3xl">{badge.icon}</span>
-                <span className="text-sm font-semibold text-white">{badge.name}</span>
-                <span className="text-xs text-gray-500">{badge.description}</span>
+                <div className="text-3xl mb-2 group-hover:scale-110 transition-transform">
+                  {badge.icon || "🏅"}
+                </div>
+                <p className="text-sm font-medium text-white truncate">{badge.name}</p>
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{badge.description}</p>
+                <p className="text-[10px] text-gray-600 mt-2">
+                  {new Date(badge.unlocked_at).toLocaleDateString("fr-FR")}
+                </p>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      {/* Reward Store */}
+      {/* Rewards */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">🎁 Reward Store</h3>
-        {data.rewards.length === 0 ? (
-          <p className="text-sm text-gray-600">
-            Aucune récompense — ajoutes-en via{" "}
-            <Link href="/dashboard/settings" className="text-blue-400 underline">Settings</Link>.
+        <h3 className="text-sm font-semibold text-gray-300 mb-4">🎁 Récompenses disponibles</h3>
+        {rewards.length === 0 ? (
+          <p className="text-gray-600 text-sm text-center py-4">
+            Aucune récompense configurée — ajoute-les dans les Paramètres
           </p>
         ) : (
-          <div className="grid grid-cols-2 gap-3">
-            {data.rewards.map((reward, index) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {rewards.map((r) => (
               <div
-                key={`reward-${reward.id}-${index}`}
-                className="bg-gray-800 rounded-xl p-4 flex items-center justify-between gap-3"
+                key={r.id}
+                className="flex items-center justify-between bg-gray-800/40 rounded-xl border border-gray-700/50 p-4"
               >
                 <div>
-                  <p className="text-sm text-white font-medium">{reward.name}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 rounded bg-gray-700 text-gray-400 capitalize">
-                      {reward.level_required}
-                    </span>
-                    {reward.cooldown_days > 0 && (
-                      <span className="text-xs text-gray-600">⏳ {reward.cooldown_days}j</span>
-                    )}
-                    <span className="text-xs text-gray-600 capitalize">{reward.reward_type}</span>
-                  </div>
+                  <p className="text-sm font-medium text-white">{r.name}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    Niveau requis : {r.level_required} • Cooldown : {r.cooldown_days}j
+                  </p>
                 </div>
                 <button
-                  onClick={() => consumeReward(reward.id, reward.name)}
-                  disabled={consuming === reward.id}
-                  className="shrink-0 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-xs text-white transition-colors"
+                  onClick={() => handleConsumeReward(r.id, r.name)}
+                  className="px-3 py-1.5 rounded-lg text-xs bg-green-600 hover:bg-green-700 text-white transition-colors shrink-0"
                 >
-                  {consuming === reward.id ? "..." : "Utiliser"}
+                  Consommer
                 </button>
               </div>
             ))}
@@ -226,21 +263,77 @@ export default function Gamification() {
         )}
       </div>
 
-      {/* Seuils — source unique : score-utils.ts */}
-      <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
-        <h3 className="text-sm font-semibold text-gray-300 mb-4">🎖️ Seuils de récompense</h3>
-        <div className="grid grid-cols-4 gap-3">
-          {SCORE_TIERS.filter((t) => t.label !== "Danger").map((tier) => (
-            <div key={`tier-${tier.label}`} className="bg-gray-800 rounded-xl p-3 text-center">
-              <div className="text-lg font-bold mb-1" style={{ color: tier.color }}>
-                {tier.emoji} {tier.label}
+      {/* Active Sanctions */}
+      {sanctions.length > 0 && (
+        <div className="bg-red-950/30 rounded-xl border border-red-800/40 p-5">
+          <h3 className="text-sm font-semibold text-red-400 mb-4">⚠️ Sanctions actives</h3>
+          <div className="space-y-3">
+            {sanctions.map((s) => (
+              <div
+                key={s.id}
+                className="flex items-center gap-3 bg-red-900/20 rounded-xl border border-red-800/30 p-4"
+              >
+                <span className="text-xl">🚫</span>
+                <div>
+                  <p className="text-sm font-medium text-red-300">{s.name}</p>
+                  <p className="text-xs text-red-400/70 mt-0.5">
+                    {s.description} • Seuil : {s.trigger_threshold}% • {s.consecutive_days}j consécutifs
+                  </p>
+                </div>
               </div>
-              <div className="text-xs text-gray-500">Score ≥ {tier.min}%</div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Streak detail */}
+      <div className="bg-gray-900 rounded-xl border border-gray-800 p-5">
+        <h3 className="text-sm font-semibold text-gray-300 mb-4">🔥 Détail du streak</h3>
+        <div className="flex items-center gap-6">
+          <div className="text-center">
+            <div className="text-5xl font-bold text-amber-400">{streak}</div>
+            <p className="text-xs text-gray-500 mt-1">jours consécutifs</p>
+          </div>
+          <div className="flex-1 space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-16">7 jours</span>
+              <div className="flex-1 bg-gray-800 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-amber-500 transition-all"
+                  style={{ width: `${Math.min(100, (streak / 7) * 100)}%` }}
+                />
+              </div>
+              <span className={`text-xs ${streak >= 7 ? "text-green-400" : "text-gray-600"}`}>
+                {streak >= 7 ? "✓" : `${7 - streak}j restants`}
+              </span>
             </div>
-          ))}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-16">30 jours</span>
+              <div className="flex-1 bg-gray-800 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-purple-500 transition-all"
+                  style={{ width: `${Math.min(100, (streak / 30) * 100)}%` }}
+                />
+              </div>
+              <span className={`text-xs ${streak >= 30 ? "text-green-400" : "text-gray-600"}`}>
+                {streak >= 30 ? "✓" : `${30 - streak}j restants`}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-gray-500 w-16">100 jours</span>
+              <div className="flex-1 bg-gray-800 rounded-full h-2">
+                <div
+                  className="h-2 rounded-full bg-blue-500 transition-all"
+                  style={{ width: `${Math.min(100, (streak / 100) * 100)}%` }}
+                />
+              </div>
+              <span className={`text-xs ${streak >= 100 ? "text-green-400" : "text-gray-600"}`}>
+                {streak >= 100 ? "✓" : `${100 - streak}j restants`}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
-
     </div>
   )
-}
+}1
